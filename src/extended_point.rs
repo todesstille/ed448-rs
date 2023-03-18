@@ -1,4 +1,4 @@
-use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve}, decaf_combs_32::{DECAF_PRECOMP_TABLE}};
+use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword, zeroMask}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve}, decaf_combs_32::{DECAF_PRECOMP_TABLE}};
 
 #[derive(Debug, PartialEq)]
 pub struct Twisted_Extended_Point {
@@ -63,6 +63,33 @@ impl Twisted_Extended_Point {
             self.t = mul(&b, &c);
         }
     }
+
+    pub fn eddsa_like_encode(&self) -> [u8; 57] {
+        let mut x = square(&self.x);
+        let mut t = square(&self.y);
+        let mut u = add(&x, &t);
+        let mut z = add(&self.y, &self.x);
+        let mut y = square(&z);
+        y = sub(&u, &y);
+        z = sub(&t, &x);
+        x = square(&self.z);
+        t = add(&x, &x);
+        t = sub(&t, &z);
+        x = mul(&t, &y);
+        y = mul(&z, &u);
+        z = mul(&u, &t);
+        // must zero out temporary variables
+        z = invert(&z);
+        t = mul(&x, &z);
+        x = mul(&y, &z);
+
+        let mut res: [u8; 57] = [0; 57];
+        res[0..56].copy_from_slice(&dsa_like_serialize(&x));
+        res[56] = (zeroMask & lowBit(&t)) as u8;
+
+        res
+    }
+
 }
 
 impl Twisted_Niels {
@@ -79,7 +106,7 @@ impl Twisted_Niels {
         let mut p = Twisted_Extended_Point::new();
         p.y = add(&self.b, &self.a);
         p.x = sub(&self.b, &self.a);
-        p.z = mul(&p.y, &p.x);
+        p.t = mul(&p.y, &p.x);
         p.z = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         
         p
@@ -92,7 +119,7 @@ pub fn precomputed_scalar_mul(mut s: Scalar) -> Twisted_Extended_Point {
     scalar2 = halve(scalar2);
 
     let mut np = Twisted_Niels::new();
-    for i in (0..(decafCombSpacing - 1)).rev() {
+    for i in (0..(decafCombSpacing)).rev() {
         if i != decafCombSpacing - 1 {
             p.double_internal(false);
         }

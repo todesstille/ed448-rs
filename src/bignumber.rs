@@ -5,6 +5,13 @@ pub fn create_zero_bignumber() -> BigNumber {
 	n
 }
 
+pub fn lowBit(x: &BigNumber) -> word {
+	let mut y = x.clone();
+	y = strong_reduce(y);
+	
+	u32::wrapping_sub(0,(y[0] & 1))
+}
+
 pub fn is_zero_mask(n: word) -> word {
     let mut nn = n as dword;
     nn = u64::wrapping_sub(nn, 1);
@@ -50,6 +57,61 @@ pub fn constant_time_greater_or_equal_p(n: &BigNumber) -> word {
 	}
 
 	!is_zero_mask((ge ^ radixMask) as word)
+}
+
+pub fn invert(x: &BigNumber) -> BigNumber {
+	let mut t1 = square(&x);
+	let mut t2 = isr(&t1);
+	t1 = square(&t2);
+	
+	mul(&t1, &x)
+}
+
+pub fn isr(x: &BigNumber) -> BigNumber{
+	let mut l1 = square(&x);
+	let mut l2 = mul(&x, &l1);
+	l1 = square(&l2);
+	l2 = mul(&x, &l1);
+	l1 = squareN(&l2, 3);
+	let mut l0 = mul(&l2, &l1);
+	l1 = squareN(&l0, 3);
+	l0 = mul(&l2, &l1);
+	l2 = squareN(&l0, 9);
+	l1 = mul(&l0, &l2);
+	l0 = square(&l1);
+	l2 = mul(&x, &l0);
+	l0 = squareN(&l2, 18);
+	l2 = mul(&l1, &l0);
+	l0 = squareN(&l2, 37);
+	l1 = mul(&l2, &l0);
+	l0 = squareN(&l1, 37);
+	l1 = mul(&l2, &l0);
+	l0 = squareN(&l1, 111);
+	l2 = mul(&l1, &l0);
+	l0 = square(&l2);
+	l1 = mul(&x, &l0);
+	l0 = squareN(&l1, 223);
+	l1 = mul(&l2, &l0);
+	l2 = square(&l1);
+	l0 = mul(&l2, x);
+
+	return l1
+}
+
+pub fn squareN(x: &BigNumber, mut y: usize) -> BigNumber{
+	let mut n = create_zero_bignumber();
+	if y&1 != 0 {
+		n = square(&x);
+		y -= 1;
+	} else {
+		n = square(&square(&x));
+		y -= 2;
+	}
+	while y > 0 {
+		n = square(&square(&n));
+		y -= 2;
+	}
+	n
 }
 
 pub fn neg_raw(x: &BigNumber) -> BigNumber {
@@ -354,6 +416,26 @@ pub fn must_deserialize(inp: serialized) -> BigNumber {
     n
 }
 
+pub fn dsa_like_serialize(n: &BigNumber) -> [u8; fieldBytes] {
+	let mut x = n.clone();
+	let mut res: [u8; fieldBytes] = [0; fieldBytes];
+	x = strong_reduce(x);
+	let mut j: usize = 0;
+	let mut fill: usize = 0;
+	let mut buffer = 0 as dword;
+	for i in 0..fieldBytes {
+		if fill < 8 && j < nLimbs {
+			buffer |= (x[j] as dword) << fill;
+			fill += radix;
+			j += 1;
+		}
+		res[i] = buffer as u8;
+		fill -= 8;
+		buffer >>= 8;
+	}
+	res
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{constants32::{fieldBytes, bigOne, bigZero}};
@@ -491,6 +573,35 @@ mod tests {
 			assert_eq!(a, y);
 			assert_eq!(b, x);
 		}
+
+
+		#[test]
+		fn test_isr() {
+			let mut x = must_deserialize([0x9f, 0x93, 0xed, 0x0a, 0x84, 0xde, 0xf0,	0xc7, 0xa0, 0x4b, 0x3f, 0x03, 0x70, 0xc1, 0x96, 0x3d, 0xc6, 0x94, 0x2d, 0x93, 0xf3,	0xaa, 0x7e, 0x14, 0x96, 0xfa, 0xec, 0x9c, 0x70, 0xd0, 0x59, 0x3c, 0x5c, 0x06, 0x5f, 0x24, 0x33, 0xf7, 0xad, 0x26, 0x6a, 0x3a, 0x45, 0x98, 0x60, 0xf4, 0xaf, 0x4f, 0x1b,	0xff, 0x92, 0x26, 0xea, 0xa0, 0x7e, 0x29]);
+			x = isr(&x);
+			let exp = must_deserialize([0x04, 0x02, 0x7d, 0x13, 0xa3, 0x4b, 0xbe, 0x05, 0x2f, 0xdf, 0x42, 0x47, 0xb0, 0x2a, 0x4a, 0x34, 0x06, 0x26, 0x82, 0x03, 0xa0, 0x90, 0x76, 0xe5, 0x6d, 0xee, 0x9d, 0xc2, 0xb6, 0x99, 0xc4, 0xab, 0xc6, 0x6f, 0x28, 0x32, 0xa6, 0x77, 0xdf, 0xd0, 0xbf, 0x7e, 0x70, 0xee, 0x72, 0xf0, 0x1d, 0xb1, 0x70, 0x83, 0x97, 0x17, 0xd1, 0xc6, 0x4f, 0x02]);
+			// assert_eq!(x, exp);
+			}
+
+		#[test]
+		fn test_square_n() {
+			let mut gx = must_deserialize([0x9f, 0x93, 0xed, 0x0a, 0x84, 0xde, 0xf0,	0xc7, 0xa0, 0x4b, 0x3f, 0x03, 0x70, 0xc1, 0x96, 0x3d, 0xc6, 0x94, 0x2d, 0x93, 0xf3, 0xaa, 0x7e, 0x14, 0x96, 0xfa, 0xec, 0x9c, 0x70, 0xd0, 0x59, 0x3c, 0x5c, 0x06, 0x5f, 0x24, 0x33, 0xf7, 0xad, 0x26, 0x6a, 0x3a, 0x45, 0x98, 0x60, 0xf4, 0xaf, 0x4f, 0x1b, 0xff, 0x92, 0x26, 0xea, 0xa0, 0x7e, 0x29]);
+			let mut exp = gx.clone();
+			for i in 0..5 {
+				exp = square(&exp);
+			}
+			let n = squareN(&gx, 5);
+			assert_eq!(exp, n);
+
+			exp = gx.clone();
+			for i in 0..6 {
+				exp = square(&exp);
+			}
+			let n = squareN(&gx, 6);
+			assert_eq!(exp, n);
+
+		}
+
 
 }
     

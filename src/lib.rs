@@ -7,6 +7,7 @@ mod karatsuba_square_32;
 mod extended_point;
 mod decaf_combs_32;
 mod goldilocks;
+mod eddsa;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
