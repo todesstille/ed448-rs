@@ -1,6 +1,6 @@
 use std::result;
 
-use crate::{scalar::{decode_long, halve}, extended_point::precomputed_scalar_mul, eddsa::{clamp, sha3_57}};
+use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::precomputed_scalar_mul, eddsa::{clamp, sha3, hash_with_dom}};
 
 pub type PrivateKey = [u8; 57];
 pub type PublicKey = [u8; 57];
@@ -13,7 +13,7 @@ pub fn hex_to_private_key(hexx: &str) -> PrivateKey {
 
 pub fn private_to_secret(pk: &PrivateKey) -> PrivateKey {
     let mut sk: PrivateKey = [0; 57];
-    sha3_57(pk, &sk);
+    sha3(pk, &mut sk);
     sk[56] |= 0x80;
     sk
 }
@@ -28,6 +28,49 @@ pub fn secret_to_public(sk: &PrivateKey) -> PublicKey {
     let mut p: PublicKey = h.eddsa_like_encode();
 
     p
+}
+
+pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
+
+    let mut secret: [u8; 114] = [0; 114];
+    sha3(pk, &mut secret);
+    let mut sk: [u8; 57] = [0; 57];
+    sk.clone_from_slice(&secret[0..57]);
+    let mut sec = decode_long(&sk);
+    let mut seed: [u8; 57] = [0; 57];
+    seed.clone_from_slice(&secret[57..114]);
+    clamp(&mut sk);
+    let mut r = decode_long(&sk);
+    r = halve(r);
+    r = halve(r);
+    let mut point = precomputed_scalar_mul(r);
+
+    let mut nonce: [u8; 114] = [0; 114];
+    let mut v1: Vec<u8> = seed.to_vec();
+    v1.append(&mut message.to_vec());
+    hash_with_dom(&mut v1, &mut nonce);
+    let mut nonce_scalar = decode_long(&nonce);
+    let mut nonce_scalar2 = nonce_scalar.clone();
+    nonce_scalar2 = halve(nonce_scalar2);
+    nonce_scalar2 = halve(nonce_scalar2);
+    let mut nonce_point = precomputed_scalar_mul(nonce_scalar2).eddsa_like_encode();
+
+    let mut challenge: [u8; 114] = [0; 114];
+    let mut h = nonce_point.to_vec();
+    h.append(&mut point.eddsa_like_encode().to_vec());
+    h.append(&mut message.to_vec());
+    hash_with_dom(&mut h, &mut challenge);
+    
+    let mut challenge_scalar = decode_long(&challenge);
+    challenge_scalar = scalar::mul(&challenge_scalar, &sec);
+    challenge_scalar = scalar::add(&challenge_scalar, &nonce_scalar);
+
+    let mut result: [u8; 114] = [0; 114];
+    result[0..57].copy_from_slice(&nonce_point);
+    result[57..114].copy_from_slice(&encode(&challenge_scalar));
+
+    result
+
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use crate::{constants32::{self, wordBits, nLimbs, fieldBytes, word, dword, radixMask, radix, sdword, lmask, BigNumber, serialized}, karatsuba_32::karatsuba_mul, karatsuba_square_32::karatsuba_square};
+use crate::{constants32::{self, wordBits, nLimbs, fieldBytes, word, dword, radixMask, radix, sdword, lmask, BigNumber, serialized, modulus, bigZero}, karatsuba_32::karatsuba_mul, karatsuba_square_32::karatsuba_square};
 
 pub fn create_zero_bignumber() -> BigNumber {
 	let n = [0; nLimbs];
@@ -215,6 +215,132 @@ pub fn mul(x: &BigNumber, y: &BigNumber) -> BigNumber {
 	karatsuba_mul(&x,&y)
 }
 
+pub fn mul_w(x: &BigNumber, w: &dword) -> BigNumber {
+	let mut n = create_zero_bignumber();
+	
+	let whi = (w >> radix) as word;
+	let wlo = (w & (radixMask as dword)) as word;
+
+	let mut accum0: dword;
+	let mut accum8: dword;
+
+	accum0 = u64::wrapping_mul((wlo as dword), (x[0] as dword));
+	accum8 = u64::wrapping_mul((wlo as dword), (x[8] as dword));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[15] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), ((x[15]+x[7]) as dword)));
+
+	n[0] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[8] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 1
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[1] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[9] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[0] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[8] as dword)));
+
+	n[1] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[9] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 2
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[2] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[10] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[1] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[9] as dword)));
+
+	n[2] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[10] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 3
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[3] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[11] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[2] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[10] as dword)));
+
+	n[3] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[11] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 4
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[4] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[12] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[3] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[11] as dword)));
+
+	n[4] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[12] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 5
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[5] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[13] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[4] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[12] as dword)));
+
+	n[5] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[13] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 6
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[6] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[14] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[5] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[13] as dword)));
+
+	n[6] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[14] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// 7
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((wlo as dword), (x[7] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((wlo as dword), (x[15] as dword)));
+	accum0 = u64::wrapping_add(accum0, u64::wrapping_mul((whi as dword), (x[6] as dword)));
+	accum8 = u64::wrapping_add(accum8, u64::wrapping_mul((whi as dword), (x[14] as dword)));
+
+	n[7] = (accum0 & (radixMask as dword)) as word;
+	accum0 >>= radix;
+
+	n[15] = (accum8 & (radixMask as dword)) as word;
+	accum8 >>= radix;
+
+	// finish
+	accum0 += (accum8 + (n[8] as dword));
+	n[8] = (accum0 & (radixMask as dword)) as word;
+	n[9] = u32::wrapping_add(n[9], ((accum0 >> radix) as word));
+
+	accum8 += (n[0] as dword);
+	n[0] = (accum8 & (radixMask as dword)) as word;
+	n[1] = u32::wrapping_add(n[1], ((accum8 >> radix) as word));
+
+
+	n 
+}
+
+pub fn mul_with_signed_curve_constant(x: &BigNumber, c: &sdword) -> BigNumber {
+	if c > &0 {
+		
+		return mul_w(&x, &(*c as dword));
+	};
+	let mut r = mul_w(&x, &((- *c) as dword));
+	return sub(&bigZero, &r);
+}
+
 pub fn conditional_swap(n: &mut BigNumber, x: &mut BigNumber, swap: &word) {
 	for i in 0..nLimbs {
 		let s = (x[i] ^ n[i]) & swap;
@@ -385,6 +511,57 @@ pub fn strong_reduce(mut n: BigNumber) -> BigNumber {
     n
 }
 
+pub fn decaf_equal(n: &BigNumber, x: &BigNumber) -> word {
+	let mut y = sub(&n, &x);
+	y = strong_reduce(y);
+	let mut ret: word = 0;
+	
+	ret |= y[0];
+	ret |= y[1];
+	ret |= y[2];
+	ret |= y[3];
+	ret |= y[4];
+	ret |= y[5];
+	ret |= y[6];
+	ret |= y[7];
+	ret |= y[8];
+	ret |= y[9];
+	ret |= y[10];
+	ret |= y[11];
+	ret |= y[12];
+	ret |= y[13];
+	ret |= y[14];
+
+	is_zero_mask(ret)
+}
+
+pub fn decaf_const_time_select(x: &BigNumber, y: &BigNumber, neg: &word) -> BigNumber {
+	let mut n = create_zero_bignumber();
+	n[0] = (x[0] & !neg) | (y[0] & neg);
+	n[1] = (x[1] & !neg) | (y[1] & neg);
+	n[2] = (x[2] & !neg) | (y[2] & neg);
+	n[3] = (x[3] & !neg) | (y[3] & neg);
+	n[4] = (x[4] & !neg) | (y[4] & neg);
+	n[5] = (x[5] & !neg) | (y[5] & neg);
+	n[6] = (x[6] & !neg) | (y[6] & neg);
+	n[7] = (x[7] & !neg) | (y[7] & neg);
+	n[8] = (x[8] & !neg) | (y[8] & neg);
+	n[9] = (x[9] & !neg) | (y[9] & neg);
+	n[10] = (x[10] & !neg) | (y[10] & neg);
+	n[11] = (x[11] & !neg) | (y[11] & neg);
+	n[12] = (x[12] & !neg) | (y[12] & neg);
+	n[13] = (x[13] & !neg) | (y[13] & neg);
+	n[14] = (x[14] & !neg) | (y[14] & neg);
+	n[15] = (x[15] & !neg) | (y[15] & neg);
+
+	n
+}
+
+pub fn decaf_cond_negate(n: &BigNumber, neg: &word) -> BigNumber {
+	let mut m = sub(&bigZero, &n);
+	decaf_const_time_select(&n, &m, &neg)
+}
+
 pub fn deserialize_return_mask(inp: serialized) -> (BigNumber, word) {
 	let mut n = create_zero_bignumber();
 
@@ -416,6 +593,40 @@ pub fn must_deserialize(inp: serialized) -> BigNumber {
     n
 }
 
+pub fn dsa_like_deserialize(input: &[u8], mask: usize) -> (BigNumber, word) {
+
+	let mut n = create_zero_bignumber();
+
+	let mut fill: usize = 0;
+	let mut j: usize = 0;
+	let mut buffer = 0 as dword;
+	let mut scarry = 0 as sdword;
+
+	for i in 0..nLimbs {
+		while fill < radix && j < fieldBytes {
+			let mut sj = input[j] as usize;
+			if j == fieldBytes - 1 {
+				sj &= !mask;
+			}
+			buffer |= (sj as dword) << fill;
+			fill += 8;
+			j += 1;
+		}
+
+		if i >= nLimbs - 1 {
+			n[i] = buffer as word;
+		} else {
+			n[i] = (buffer & (((1 << radix) as dword) - 1)) as word;
+		}
+		fill -= radix;
+		buffer >>= radix;
+		// TODO CHECK SCARRY NOT SURE IF CORRECT
+		scarry = ((u32::wrapping_sub(u32::wrapping_add((scarry as word), n[i]), modulus[i]) >> 8) * 4) as sdword;
+	}
+
+	(n, (is_zero_mask(buffer as word) & !is_zero_mask(scarry as word)))
+}
+
 pub fn dsa_like_serialize(n: &BigNumber) -> [u8; fieldBytes] {
 	let mut x = n.clone();
 	let mut res: [u8; fieldBytes] = [0; fieldBytes];
@@ -438,7 +649,7 @@ pub fn dsa_like_serialize(n: &BigNumber) -> [u8; fieldBytes] {
 
 #[cfg(test)]
 mod tests {
-    use crate::{constants32::{fieldBytes, bigOne, bigZero}};
+    use crate::{constants32::{fieldBytes, bigOne, bigZero, decafTrue, edwardsD}};
 
     use super::*;
 
@@ -579,8 +790,8 @@ mod tests {
 		fn test_isr() {
 			let mut x = must_deserialize([0x9f, 0x93, 0xed, 0x0a, 0x84, 0xde, 0xf0,	0xc7, 0xa0, 0x4b, 0x3f, 0x03, 0x70, 0xc1, 0x96, 0x3d, 0xc6, 0x94, 0x2d, 0x93, 0xf3,	0xaa, 0x7e, 0x14, 0x96, 0xfa, 0xec, 0x9c, 0x70, 0xd0, 0x59, 0x3c, 0x5c, 0x06, 0x5f, 0x24, 0x33, 0xf7, 0xad, 0x26, 0x6a, 0x3a, 0x45, 0x98, 0x60, 0xf4, 0xaf, 0x4f, 0x1b,	0xff, 0x92, 0x26, 0xea, 0xa0, 0x7e, 0x29]);
 			x = isr(&x);
-			let exp = must_deserialize([0x04, 0x02, 0x7d, 0x13, 0xa3, 0x4b, 0xbe, 0x05, 0x2f, 0xdf, 0x42, 0x47, 0xb0, 0x2a, 0x4a, 0x34, 0x06, 0x26, 0x82, 0x03, 0xa0, 0x90, 0x76, 0xe5, 0x6d, 0xee, 0x9d, 0xc2, 0xb6, 0x99, 0xc4, 0xab, 0xc6, 0x6f, 0x28, 0x32, 0xa6, 0x77, 0xdf, 0xd0, 0xbf, 0x7e, 0x70, 0xee, 0x72, 0xf0, 0x1d, 0xb1, 0x70, 0x83, 0x97, 0x17, 0xd1, 0xc6, 0x4f, 0x02]);
-			// assert_eq!(x, exp);
+			let exp:BigNumber = [29773570, 137982333, 1945968, 118417199, 265338750, 53110653, 197553960, 191470666, 233741762, 151481942, 109183904, 77807714, 38252586, 5438964, 61033406, 4204497];
+			assert_eq!(x, exp);
 			}
 
 		#[test]
@@ -600,6 +811,46 @@ mod tests {
 			let n = squareN(&gx, 6);
 			assert_eq!(exp, n);
 
+		}
+
+		#[test]
+		fn test_dsa_like_deserialize() {
+			let ser: [u8; 57] = [0xa5, 0xd9, 0xce, 0xa4, 0x06, 0x89, 0xa4, 0x13, 0x94, 0xf0, 0x69, 0x32, 0xfe, 0xe0, 0xdb, 0x11, 0x7b, 0xe0, 0x75, 0x78, 0x68, 0x2c, 0x48, 0x44, 0x70, 0x3b, 0xe9, 0xc6, 0x64, 0xde, 0x6c, 0xe0, 0xd6, 0xa5, 0xa3, 0x4e, 0xe7, 0x38, 0xd9, 0xb3, 0x0c, 0x93, 0x75, 0x75, 0x8d, 0xe8, 0x50, 0xde, 0x06, 0x2c, 0xb9, 0x75, 0x50, 0x7d, 0x24, 0x85, 0x0];
+			let exp: BigNumber = [0x04ced9a5, 0x0a48906a, 0x09f09413, 0x0e0fe326, 0x007b11db, 0x0687875e, 0x0044482c, 0x0c6e93b7, 0x006cde64, 0x0a3a5d6e, 0x0938e74e, 0x0930cb3d, 0x088d7575, 0x006de50e, 0x0075b92c, 0x085247d5];
+			let (dst, ok) = dsa_like_deserialize(&ser, 0);
+			assert_eq!(dst, exp);
+			assert_eq!(ok, decafTrue);
+		}
+
+		#[test]
+		fn test_mul_w() {
+			let (mut x, _) = deserialize([0xf5, 0x81, 0x74, 0xd5, 0x7a, 0x33, 0x72,
+				0x36, 0x3c, 0x0d, 0x9f, 0xcf, 0xaa, 0x3d,
+				0xc1, 0x8b, 0x1e, 0xff, 0x7e, 0x89, 0xbf,
+				0x76, 0x78, 0x63, 0x65, 0x80, 0xd1, 0x7d,
+				0xd8, 0x4a, 0x87, 0x3b, 0x14, 0xb9, 0xc0,
+				0xe1, 0x68, 0x0b, 0xbd, 0xc8, 0x76, 0x47,
+				0xf3, 0xc3, 0x82, 0x90, 0x2d, 0x2f, 0x58,
+				0xd2, 0x75, 0x4b, 0x39, 0xbc, 0xa8, 0x74]);
+			let w: dword = 0x2;
+			let w1: BigNumber = [0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0];
+			let r1 = mul(&x, &w1);
+			let r2 = mul_w(&x, &w);
+			assert_eq!(r1, r2);
+		}
+		#[test]
+		fn test_mul_with_signed_curve_constant() {
+			let x = must_deserialize([0x02, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]);
+			let exp: BigNumber = [0xffecead, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xffffffe, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff, 0xfffffff];
+			let res = mul_with_signed_curve_constant(&x, &edwardsD);
+			assert_eq!(exp, res);
+		}
+
+		#[test]
+		fn test_decaf_cond_negate() {
+			let x = [9447134, 201824152, 65679959, 162209644, 89947221, 14033660, 215998574, 243574711, 245668686, 557333, 205587971, 267670513, 204046926, 127817597, 239718135, 242178954];
+			let exp = [258988321, 66611303, 202755496, 106225811, 178488234, 254401795, 52436881, 24860744, 22766768, 267878122, 62847484, 764942, 64388529, 140617858, 28717320, 26256501];
+			assert_eq!(exp, decaf_cond_negate(&x, &lmask));
 		}
 
 

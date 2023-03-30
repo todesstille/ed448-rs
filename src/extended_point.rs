@@ -1,4 +1,6 @@
-use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword, zeroMask}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve}, decaf_combs_32::{DECAF_PRECOMP_TABLE}};
+use std::slice::Windows;
+
+use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword, zeroMask, fieldBytes, bigOne, edwardsD, dword, bigZero, decafTrue, decafFalse}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve, self}, decaf_combs_32::{DECAF_PRECOMP_TABLE}};
 
 #[derive(Debug, PartialEq)]
 pub struct Twisted_Extended_Point {
@@ -90,6 +92,44 @@ impl Twisted_Extended_Point {
         res
     }
 
+    pub fn is_on_curve(&self) -> bool {
+        let mut a = mul(&self.x, &self.y);
+        let mut b = mul(&self.z, &self.t);
+        let mut valid = decaf_equal(&a, &b);
+
+        a = square(&self.x);
+        b = square(&self.y);
+        a = sub(&b, &a);
+        b = square(&self.t);
+        let mut c = mul_w(&b, &((1 - edwardsD) as dword));
+        b = square(&self.z);
+        b = sub(&b, &c);
+        valid &= decaf_equal(&a, &b);
+        valid &= !(decaf_equal(&self.z, &bigZero));
+
+        valid == decafTrue
+    }
+
+    // IMPLEMENT TWISTED PROJECTED NIELS!!!
+    pub fn prepare_fixed_window(&self, nTable: i32) {}
+
+    pub fn point_scalar_mul(&self, s: &Scalar) -> Twisted_Extended_Point {
+        let decafWindowBits: usize = 5;
+        let window: usize = decafWindowBits;
+        let windowMask: usize = (1 << window) - 1;
+        let windowTMask: usize = windowMask >> 1;
+        let nTable: usize = 1 << (window - 1);
+
+        let mut out = Twisted_Extended_Point::new();
+        let mut scalar1x = create_zero_scalar();
+        scalar1x = scalar::add(&s, &DECAF_PRECOMP_TABLE.scalar_adjustment);
+        scalar1x = halve(scalar1x);
+
+        //CONTINUE
+
+        out
+    }
+
 }
 
 impl Twisted_Niels {
@@ -111,6 +151,58 @@ impl Twisted_Niels {
         
         p
     }
+}
+
+pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
+    let mut p = Twisted_Extended_Point::new();
+    if srcOrg.len() != 57 {
+        panic!("Attempted to decode with a source that is not 57 bytes");
+    }
+    let mut src: [u8; 57] = [0; 57];
+    src.copy_from_slice(srcOrg);
+    let cofactorMask = zeroMask;
+    let low = !is_zero_mask(zeroMask & (src[fieldBytes] as word));
+    src[fieldBytes] &= (!cofactorMask) as u8;
+
+    let mut succ = is_zero_mask(src[fieldBytes] as word);
+    let mut succ1: u32;
+    (p.y, succ1) = dsa_like_deserialize(&src, 0);
+    succ &= succ1;
+
+    p.x = square(&p.y);
+    p.z = sub(&bigOne, &p.x);
+    p.t = mul_with_signed_curve_constant(&p.x, &edwardsD);
+    p.t = sub(&bigOne, &p.t);
+    p.x = sub(&p.z, &p.t);
+    p.t = isr(&p.x);
+    p.x = mul(&p.t, &p.z);
+    p.x = decaf_cond_negate(&p.x, &(!(lowBit(&p.x)) ^ low));
+    p.z = bigOne.clone();
+
+    let mut c = square(&p.x);
+    let mut a = square(&p.y);
+    let mut d = add(&c, &a);
+    p.t = add(&p.y, &p.x);
+    let mut b = square(&p.t);
+    b = sub(&b, &d);
+    p.t = sub(&a, &c);
+    p.x = square(&p.z);
+    p.z = add(&p.x, &p.x);
+    a = sub(&p.z, &d);
+    p.x = mul(&a, &b);
+    p.z = mul(&p.t, &a);
+    p.y = mul(&p.t, &d);
+    p.t = mul(&b, &d);
+    
+    let ok = p.is_on_curve();
+    if !ok {
+        return (Twisted_Extended_Point::new(), decafFalse);
+    }
+
+    // CONTINUE
+
+    return (p, succ)
+    
 }
 
 pub fn precomputed_scalar_mul(mut s: Scalar) -> Twisted_Extended_Point {
@@ -270,6 +362,21 @@ mod tests {
         };
         assert_eq!(p.x, exp.x);
         assert_eq!(p.t, exp.t);
+    }
+
+    #[test]
+    pub fn is_valid_point() {
+        let mut p = Twisted_Extended_Point::new();
+        p.x = [0x034365c8, 0x06b2a874, 0x0eb875d7, 0x0ae4c7a7, 0x0785df04, 0x09929351, 0x01fe8c3b, 0x0f2a0e5f, 0x0111d39c, 0x07ab52ba, 0x01df4552, 0x01d87566, 0x0f297be2, 0x027c090f, 0x0a81b155, 0x0d1a562b];
+        p.y = [0x00da9708, 0x0e7d583e, 0x0dbcc099, 0x0d2dad89, 0x05a49ce4, 0x01cb4ddc, 0x0928d395, 0x0098d91d, 0x0bff16ce, 0x06f02f9a, 0x0ce27cc1, 0x0dab5783, 0x0b553d94, 0x03251a0c, 0x064d70fb, 0x07fe3a2f];
+        p.z = [0x0d5237cc, 0x0319d105, 0x02ab2df5, 0x022e9736, 0x0d79742f, 0x00688712, 0x012d3a65, 0x0ef4925e, 0x0bd0d260, 0x0832b532, 0x05faef27, 0x01ffe567, 0x0161ce73, 0x07bda0f5, 0x035d04f1, 0x0930f532];
+        p.t = [0x01f6cc27, 0x09be7b8a, 0x0226da79, 0x0f6202f1, 0x0e7264dc, 0x0d25aeb1, 0x06c81f07, 0x03c32cdc, 0x0923c854, 0x0cfc9865, 0x055b2fed, 0x05bdcc90, 0x01a99835, 0x0ea08056, 0x0abbf763, 0x03826c2f];
+        assert_eq!(p.is_on_curve(), true);
+        p.x = [0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff];
+        p.y = [0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff];
+        p.z = [0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff];
+        p.t = [0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff];
+        assert_eq!(p.is_on_curve(), false);
     }
 
 }

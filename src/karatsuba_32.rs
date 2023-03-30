@@ -12,20 +12,20 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	}
 
 	let mut z2: dword = (a[0] as dword) * (b[0] as dword);
-	let mut z1: dword = aa[0] * bb[0];
+	let mut z1: dword = u64::wrapping_mul(aa[0], bb[0]);
 	z1 = u64::wrapping_sub(z1, z2);
 	let mut z0: dword = (a[8] as dword) * (b[8] as dword);
 	z0 = u64::wrapping_add(z0, z2);
 
 	z2 = 0;
 
-	z2 = u64::wrapping_add(z2, aa[7] * bb[1]);
-	z2 = u64::wrapping_add(z2, aa[6] * bb[2]);
-	z2 = u64::wrapping_add(z2, aa[5] * bb[3]);
-	z2 = u64::wrapping_add(z2, aa[4] * bb[4]);
-	z2 = u64::wrapping_add(z2, aa[3] * bb[5]);
-	z2 = u64::wrapping_add(z2, aa[2] * bb[6]);
-	z2 = u64::wrapping_add(z2, aa[1] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[1]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[6], bb[2]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[5], bb[3]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[4], bb[4]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[3], bb[5]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[2], bb[6]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[1], bb[7]));
 
 	z1 = u64::wrapping_add(z1, (a[15] as dword) * (b[9] as dword));
 	z1 = u64::wrapping_add(z1, (a[14] as dword) * (b[10] as dword));
@@ -56,8 +56,8 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[0] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[1] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[1] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[1]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[1]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[9] as dword) * (b[8] as dword));
@@ -66,12 +66,12 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 
 	z2 = 0;
 
-	z2 = u64::wrapping_add(z2, aa[7] * bb[2]);
-	z2 = u64::wrapping_add(z2, aa[6] * bb[3]);
-	z2 = u64::wrapping_add(z2, aa[5] * bb[4]);
-	z2 = u64::wrapping_add(z2, aa[4] * bb[5]);
-	z2 = u64::wrapping_add(z2, aa[3] * bb[6]);
-	z2 = u64::wrapping_add(z2, aa[2] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[2]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[6], bb[3]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[5], bb[4]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[4], bb[5]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[3], bb[6]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[2], bb[7]));
 
 	z1 = u64::wrapping_add(z1, (a[15] as dword) * (b[10] as dword));
 	z1 = u64::wrapping_add(z1, (a[14] as dword) * (b[11] as dword));
@@ -101,9 +101,9 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[1] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[2] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[2] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[1] * bb[1]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[2]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[2], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[1]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[2]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[10] as dword) * (b[8] as dword));
@@ -112,11 +112,11 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z0 = u64::wrapping_add(z0, z2);
 
 	z2 = 0;
-	z2 = u64::wrapping_add(z2, aa[7] * bb[3]);
-	z2 = u64::wrapping_add(z2, aa[6] * bb[4]);
-	z2 = u64::wrapping_add(z2, aa[5] * bb[5]);
-	z2 = u64::wrapping_add(z2, aa[4] * bb[6]);
-	z2 = u64::wrapping_add(z2, aa[3] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[3]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[6], bb[4]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[5], bb[5]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[4], bb[6]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[3], bb[7]));
 
 	z1 = u64::wrapping_add(z1, (a[15] as dword) * (b[11] as dword));
 	z1 = u64::wrapping_add(z1, (a[14] as dword) * (b[12] as dword));
@@ -145,10 +145,10 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[2] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[3] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[3] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[2] * bb[1]);
-	z1 = u64::wrapping_add(z1, aa[1] * bb[2]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[3]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[3], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[2], bb[1]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[2]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[3]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[11] as dword) * (b[8] as dword));
@@ -158,10 +158,10 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z0 = u64::wrapping_add(z0, z2);
 
 	z2 = 0;
-	z2 = u64::wrapping_add(z2, aa[7] * bb[4]);
-	z2 = u64::wrapping_add(z2, aa[6] * bb[5]);
-	z2 = u64::wrapping_add(z2, aa[5] * bb[6]);
-	z2 = u64::wrapping_add(z2, aa[4] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[4]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[6], bb[5]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[5], bb[6]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[4], bb[7]));
 
 	z0 = u64::wrapping_sub(z0, (a[7] as dword) * (b[4] as dword));
 	z0 = u64::wrapping_sub(z0, (a[6] as dword) * (b[5] as dword));
@@ -189,11 +189,11 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[3] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[4] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[4] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[3] * bb[1]);
-	z1 = u64::wrapping_add(z1, aa[2] * bb[2]);
-	z1 = u64::wrapping_add(z1, aa[1] * bb[3]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[4]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[4], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[3], bb[1]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[2], bb[2]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[3]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[4]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[12] as dword) * (b[8] as dword));
@@ -204,9 +204,9 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z0 = u64::wrapping_add(z0, z2);
 
 	z2 = 0;
-	z2 = u64::wrapping_add(z2, aa[7] * bb[5]);
-	z2 = u64::wrapping_add(z2, aa[6] * bb[6]);
-	z2 = u64::wrapping_add(z2, aa[5] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[5]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[6], bb[6]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[5], bb[7]));
 
 	z1 = u64::wrapping_add(z1, (a[15] as dword) * (b[13] as dword));
 	z1 = u64::wrapping_add(z1, (a[14] as dword) * (b[14] as dword));
@@ -233,12 +233,12 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[4] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[5] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[5] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[4] * bb[1]);
-	z1 = u64::wrapping_add(z1, aa[3] * bb[2]);
-	z1 = u64::wrapping_add(z1, aa[2] * bb[3]);
-	z1 = u64::wrapping_add(z1, aa[1] * bb[4]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[5]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[5], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[4], bb[1]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[3], bb[2]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[2], bb[3]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[4]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[5]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[13] as dword) * (b[8] as dword));
@@ -250,8 +250,8 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z0 = u64::wrapping_add(z0, z2);
 
 	z2 = 0;
-	z2 = u64::wrapping_add(z2, aa[7] * bb[6]);
-	z2 = u64::wrapping_add(z2, aa[6] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[6]));
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[6], bb[7]));
 
 	z1 = u64::wrapping_add(z1, (a[15] as dword) * (b[14] as dword));
 	z1 = u64::wrapping_add(z1, (a[14] as dword) * (b[15] as dword));
@@ -277,13 +277,13 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[5] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[6] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[6] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[5] * bb[1]);
-	z1 = u64::wrapping_add(z1, aa[4] * bb[2]);
-	z1 = u64::wrapping_add(z1, aa[3] * bb[3]);
-	z1 = u64::wrapping_add(z1, aa[2] * bb[4]);
-	z1 = u64::wrapping_add(z1, aa[1] * bb[5]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[6]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[6], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[5], bb[1]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[4], bb[2]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[3], bb[3]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[2], bb[4]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[5]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[6]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[14] as dword) * (b[8] as dword));
@@ -296,7 +296,7 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z0 = u64::wrapping_add(z0, z2);
 
 	z2 = 0;
-	z2 = u64::wrapping_add(z2, aa[7] * bb[7]);
+	z2 = u64::wrapping_add(z2, u64::wrapping_mul(aa[7], bb[7]));
 	z1 = u64::wrapping_add(z1, (a[15] as dword) * (b[15] as dword));
 	z1 = u64::wrapping_add(z1, z2);
 	z0 = u64::wrapping_sub(z0, (a[7] as dword) * (b[7] as dword));
@@ -319,14 +319,14 @@ pub fn karatsuba_mul(a: &BigNumber, b: &BigNumber) -> BigNumber {
 	z2 = u64::wrapping_add(z2, (a[1] as dword) * (b[6] as dword));
 	z2 = u64::wrapping_add(z2, (a[0] as dword) * (b[7] as dword));
 
-	z1 = u64::wrapping_add(z1, aa[7] * bb[0]);
-	z1 = u64::wrapping_add(z1, aa[6] * bb[1]);
-	z1 = u64::wrapping_add(z1, aa[5] * bb[2]);
-	z1 = u64::wrapping_add(z1, aa[4] * bb[3]);
-	z1 = u64::wrapping_add(z1, aa[3] * bb[4]);
-	z1 = u64::wrapping_add(z1, aa[2] * bb[5]);
-	z1 = u64::wrapping_add(z1, aa[1] * bb[6]);
-	z1 = u64::wrapping_add(z1, aa[0] * bb[7]);
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[7], bb[0]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[6], bb[1]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[5], bb[2]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[4], bb[3]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[3], bb[4]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[2], bb[5]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[1], bb[6]));
+	z1 = u64::wrapping_add(z1, u64::wrapping_mul(aa[0], bb[7]));
 	z1 = u64::wrapping_sub(z1, z2);
 
 	z0 = u64::wrapping_add(z0, (a[15] as dword) * (b[8] as dword));

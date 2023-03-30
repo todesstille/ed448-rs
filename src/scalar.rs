@@ -144,6 +144,20 @@ pub fn decode(b: &[u8]) -> Scalar {
 
 }
 
+pub fn encode(s: &Scalar) -> [u8; 57] {
+    let wordBytes = wordBits / 8;
+    let mut dst: [u8; 57] = [0; 57];
+    let mut k:usize = 0;
+    for i in 0..scalarLimbs {
+        for j in 0..wordBytes {
+            let b = s[i] >> (8 * j);
+            dst[k] = b as u8;
+            k += 1;
+        }
+    }
+    dst
+}
+
 pub fn decode_long(b: &[u8]) -> Scalar{
     let mut y = create_zero_scalar();
     let b_len = b.len();
@@ -273,5 +287,9 @@ mod tests {
         exp = [0x7d9d5b0a, 0xe9bc6e73, 0xe16ac2d8, 0xdd13bfdc, 0xfdb68ed4, 0x1fa36b12, 0x29fbe30b, 0xd11ab314, 0x94421341, 0x840d9bdb, 0x517a43ec, 0xbd859b5a, 0xac5eb1a1, 0x32a3e4eb];
         x = decode_long(&b);
         assert_eq!(x, exp);
+    }
+
+    #[test]
+    fn test_scalar_encode() {
     }
 }

@@ -8,11 +8,16 @@ pub const zeroMask: word = 0x80;
 pub const allZeros: word = 0x00;
 pub const allOnes: word = 0xffffffff;
 
+pub const decafTrue: word = 0xffffffff;
+pub const decafFalse: word = 0x00;
+
 
 pub const nLimbs: usize      = 16;
 pub const scalarLimbs: usize = 14;
 pub const radix: usize       = 28;
 pub const radixMask: word   = 0xfffffff as word;
+
+pub const edwardsD: sdword = -39081;
 
 pub type BigNumber = [word; nLimbs];
 pub type serialized = [u8; fieldBytes];
@@ -56,3 +61,4 @@ pub const ScalarR2: [word; scalarWords] = [0x049b9b60, 0xe3539257, 0xc1b195d9, 0
                                           0xa3c47c44, 0x1a9cc14b, 0xe4d070af, 0x2052bcb7,
                                           0xf823b729, 0x3402a939];
 pub const ScalarZero: [word; scalarWords] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+pub const modulus: BigNumber = [0xffffff, 0xffffffff, 0xffffff, 0xffffffff, 0xffffff, 0xffffffff, 0xffffff, 0xffffffff, 0xfffffe, 0xffffffff, 0xffffff, 0xffffffff, 0xffffff, 0xffffffff, 0xffffff, 0xffffffff];
