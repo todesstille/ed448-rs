@@ -1,6 +1,6 @@
 use std::result;
 
-use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::precomputed_scalar_mul, eddsa::{clamp, sha3, hash_with_dom}};
+use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::precomputed_scalar_mul, eddsa::{clamp, sha3, hash_with_dom, dsa_verify}};
 
 pub type PrivateKey = [u8; 57];
 pub type PublicKey = [u8; 57];
@@ -9,6 +9,12 @@ pub fn hex_to_private_key(hexx: &str) -> PrivateKey {
     let mut p: PrivateKey = [0;57];
     hex::decode_to_slice(hexx, &mut p).expect("Decoding failed");
     p
+}
+
+pub fn hex_to_signature(hexx: &str) -> [u8; 114] {
+    let mut s: [u8; 114] = [0;114];
+    hex::decode_to_slice(hexx, &mut s).expect("Decoding failed");
+    s
 }
 
 pub fn private_to_secret(pk: &PrivateKey) -> PrivateKey {
@@ -34,6 +40,7 @@ pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
 
     let mut secret: [u8; 114] = [0; 114];
     sha3(pk, &mut secret);
+    clamp(&mut secret);
     let mut sk: [u8; 57] = [0; 57];
     sk.clone_from_slice(&secret[0..57]);
     let mut sec = decode_long(&sk);
@@ -73,6 +80,10 @@ pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
 
 }
 
+pub fn verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
+    dsa_verify(pubkey, sig, message)
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::SystemTime;
@@ -101,6 +112,22 @@ mod tests {
         let exp: PublicKey = [182, 21, 229, 125, 212, 209, 92, 62, 209, 50, 55, 37, 192, 186, 139, 29, 127, 110, 116, 13, 8, 224, 226, 156, 109, 63, 245, 100, 200, 150, 192, 195, 221, 40, 169, 187, 80, 101, 224, 103, 37, 200, 249, 227, 247, 194, 198, 187, 173, 73, 0, 183, 68, 126, 207, 152, 128];
         assert_eq!(pubk, exp);
     }
+
+
+    #[test]
+    pub fn test_sign_with_private() {
+        let pk = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb5");
+        let fox = b"The quick brown fox jumps over the lazy dog";
+        let sig = sign_by_private(&pk, fox);
+        println!("{:?}", sig);
+        let sec = private_to_secret(&pk);
+        let public = secret_to_public(&sec);
+        println!("{:?}", public);
+        println!("{:?}", pk);
+        let sig2 = hex_to_signature("d3ffe2cffeba84f631c9e4f452c7f27023b48e679f30ad9f43b4ef0483670e25842efdd6a20ad74f2c08351e37857763c0e1b787a7a02c5c00708263b206ab852e865676b3b8ad2c86794cd2831b54064cda39e2703a4c172a1debf051e01ae981c58a577731127f2bfb7aaa3f9242572400");
+        assert_eq!(sig, sig2);
+    }
+
 
     // #[test]
     // pub fn test_secret_to_public_benchmarks() {

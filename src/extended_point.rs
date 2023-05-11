@@ -1,8 +1,20 @@
 use std::slice::Windows;
 
-use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword, zeroMask, fieldBytes, bigOne, edwardsD, dword, bigZero, decafTrue, decafFalse}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve, self}, decaf_combs_32::{DECAF_PRECOMP_TABLE}};
+use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword, zeroMask, fieldBytes, bigOne, edwardsD, dword, bigZero, decafTrue, decafFalse, scalarWords}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve, self}, decaf_combs_32::{DECAF_PRECOMP_TABLE}, decaf_wnaf_table::DECAF_WNAF_TABLE};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct Smvt_Control {
+    power: i64,
+    addend: i64,
+}
+
+impl Smvt_Control {
+    pub fn new() -> Self {
+        Smvt_Control { power: 0, addend: 0 }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Twisted_Extended_Point {
     x: BigNumber,
     y: BigNumber,
@@ -17,6 +29,34 @@ pub struct Twisted_Niels {
     pub c: BigNumber,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Twisted_Projected_Niels {
+    pub n: Twisted_Niels,
+    pub z: BigNumber,
+}
+
+impl Twisted_Projected_Niels {
+    pub fn new() -> Self {
+        Twisted_Projected_Niels {
+            n: Twisted_Niels::new(),
+            z: create_zero_bignumber(),
+        }
+    }
+
+    pub fn to_extended_point(&self) -> Twisted_Extended_Point {
+        let mut q = Twisted_Extended_Point::new();
+
+        let eu = add(&self.n.b, &self.n.a);
+        q.y = sub(&self.n.b, &self.n.a);
+        q.t = mul(&q.y, &eu);
+        q.x = mul(&self.z, &q.y);
+        q.y = mul(&self.z, &eu);
+        q.z = square(&self.z);
+    
+        q
+    }
+}
+
 impl Twisted_Extended_Point {
     pub fn new() -> Self {
         Twisted_Extended_Point { x: create_zero_bignumber(), 
@@ -24,6 +64,13 @@ impl Twisted_Extended_Point {
                                  z: create_zero_bignumber(), 
                                  t: create_zero_bignumber() 
         }
+    }
+
+    pub fn set_identity(&mut self) {
+        self.x = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        self.y = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        self.z = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        self.t = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     }
 
     pub fn double_internal(&mut self, before_double: bool) {
@@ -48,6 +95,14 @@ impl Twisted_Extended_Point {
         }
     }
 
+    pub fn mod_equal(&self, p2: &Twisted_Extended_Point) -> bool {
+        let a = mul(&self.y, &p2.x);
+        let b = mul(&self.x, &p2.y);
+        let valid = decaf_equal(&a, &b);
+        
+        valid == decafTrue
+    }
+
     pub fn add_niels_to_extended(&mut self, np: &Twisted_Niels, before_double: bool) {
         let mut b = sub(&self.y, &self.x);
         let mut a = mul(&np.a, &b);
@@ -65,6 +120,38 @@ impl Twisted_Extended_Point {
             self.t = mul(&b, &c);
         }
     }
+
+    pub fn sub_niels_from_extended_point(&mut self, np: &Twisted_Niels, before_double: bool) {
+        let mut b = sub(&self.y, &self.x);
+        let mut a = mul(&np.b, &b);
+        b = add_raw(&self.x, &self.y);
+        self.y = mul(&np.a, &b);
+        self.x = mul(&np.c, &self.t);
+        let mut c = add_raw(&a, &self.y);
+        b = sub(&self.y, &a);
+        self.y = add_raw(&self.z, &self.x);
+        a = sub(&self.z, &self.x);
+        self.z = mul(&a, &self.y);
+        self.x = mul(&self.y, &b);
+        self.y = mul(&a, &c);
+        if !before_double {
+            self.t = mul(&b, &c);
+        }
+    }
+
+
+    pub fn add_projected_niels_to_extended(&mut self, np: &Twisted_Projected_Niels, before_double: bool) {
+        let tmp = mul(&self.z, &np.z);
+        self.z = tmp.clone();
+        self.add_niels_to_extended(&np.n, before_double);
+    }
+
+    pub fn sub_projected_niels_from_extended_point(&mut self, p2: &Twisted_Projected_Niels, before_double: bool) {
+        let tmp = mul(&self.z, &p2.z);
+        self.z = tmp.clone();
+        self.sub_niels_from_extended_point(&p2.n, before_double);
+    }
+
 
     pub fn eddsa_like_encode(&self) -> [u8; 57] {
         let mut x = square(&self.x);
@@ -110,10 +197,37 @@ impl Twisted_Extended_Point {
         valid == decafTrue
     }
 
-    // IMPLEMENT TWISTED PROJECTED NIELS!!!
-    pub fn prepare_fixed_window(&self, nTable: i32) {}
+    pub fn to_projected_niels(&self) -> Twisted_Projected_Niels {
+        let a = sub(&self.y, &self.x);
+        let b = add(&self.x, &self.y);
+        let c = mul_with_signed_curve_constant(&self.t, &((2 * edwardsD) - 2));
+        let z = add(&self.z, &self.z);
+        
+        Twisted_Projected_Niels { 
+            n: Twisted_Niels { a, b, c}, 
+            z: z, 
+        }
+    }
+
+    pub fn prepare_fixed_window(&self) -> Vec<Twisted_Projected_Niels>{
+        let nTable: usize = 16;
+        let mut pOriginal = self.clone();
+        let mut pTemp = self.clone();
+        pTemp.double_internal(false);
+        let pn = pTemp.to_projected_niels();
+
+        let mut out = Vec::new();
+        out.push(pOriginal.to_projected_niels());
+        for i in 1..nTable {
+            pOriginal.add_projected_niels_to_extended(&pn, false);
+            out.push(pOriginal.to_projected_niels());
+        }
+
+        out
+    }
 
     pub fn point_scalar_mul(&self, s: &Scalar) -> Twisted_Extended_Point {
+
         let decafWindowBits: usize = 5;
         let window: usize = decafWindowBits;
         let windowMask: usize = (1 << window) - 1;
@@ -125,9 +239,132 @@ impl Twisted_Extended_Point {
         scalar1x = scalar::add(&s, &DECAF_PRECOMP_TABLE.scalar_adjustment);
         scalar1x = halve(scalar1x);
 
-        //CONTINUE
+        let multiples = self.prepare_fixed_window();
+        let mut first: bool = true;
 
+        let mut i = (scalarBits - ((scalarBits - 1) % window) - 1) as i32;
+        while i >= 0 {
+            let i1 = i as usize;
+            let mut bits = scalar1x[i1 / wordBits] >> (i1 % wordBits);
+
+            if i1 % wordBits >= wordBits - window && i1/wordBits < scalarWords - 1 {    
+                bits ^= scalar1x[i1/wordBits + 1] << (wordBits-(i1 % wordBits));
+            }
+            bits &= windowMask as u32;
+            let inv = u32::wrapping_sub((bits >> (window - 1)), 1);
+            bits ^= inv;
+            
+            let mut pNeg = multiples[((bits as usize) & windowTMask) ].clone();
+            pNeg.n.conditional_negate(&inv);
+            
+            if first {
+                out = pNeg.to_extended_point();
+                first = false;
+            } else {
+                for j in 0..(window-1) {
+                    out.double_internal(true);    
+                }
+                out.double_internal(false);
+                out.add_projected_niels_to_extended(&pNeg, false);
+            }
+
+            i -= window as i32;
+        }
         out
+    }
+
+    pub fn point_double_scalamul_non_secret(&self, scalarPre: &Scalar, scalarVar: &Scalar) -> Twisted_Extended_Point {
+        
+        let mut p = self.clone();
+
+        let tableBitsVar: usize = 3; // DECAF_WNAF_VAR_TABLE_BITS
+        let tableBitsPre: usize = 5; // DECAF_WNAF_FIXED_TABLE_BITS
+
+        let mut controlVar = Vec::new();
+        for i in 0..115 {
+            controlVar.push(Smvt_Control::new());
+        }
+
+        let mut controlPre = Vec::new();
+        for i in 0..77 {
+            controlPre.push(Smvt_Control::new());
+        }
+
+        recode_wnaf(&mut controlPre, &scalarPre, tableBitsPre);
+        recode_wnaf(&mut controlVar, &scalarVar, tableBitsVar);
+
+        let mut precmpVar = Vec::new();
+        for i in 0..8 {
+            precmpVar.push(Twisted_Projected_Niels::new());
+        }
+
+        decaf_prepare_wnaf_table(&mut precmpVar, &mut p, tableBitsVar);
+
+        let mut contp: usize = 0;
+        let mut contv: usize = 0;
+    
+        let mut index = controlVar[0].addend >> 1;
+    
+        let mut i = controlVar[0].power;
+        let mut out = Twisted_Extended_Point::new();
+
+        if i > controlPre[0].power {
+            out = precmpVar[index as usize].to_extended_point();
+            contv += 1;
+        } else if i == controlPre[0].power && i >= 0 {
+            out = precmpVar[index as usize].to_extended_point();
+            out.add_niels_to_extended(&DECAF_WNAF_TABLE[(controlPre[0].addend as usize) >> 1], i != 0);
+            contv += 1;
+            contp +=1;
+        } else {
+            i = controlPre[0].power;
+            out = DECAF_WNAF_TABLE[(controlPre[0].addend as usize) >> 1].to_extended();
+            contp += 1;
+        }
+    
+        if i < 0 {
+            out.set_identity();
+            return out
+        }
+    
+        i -= 1;
+        while i >= 0 {
+
+            let cv = i == controlVar[contv].power;
+            let cp = i == controlPre[contp].power;
+    
+            out.double_internal(i != 0 && !(cv || cp));
+    
+            if cv {
+                if controlVar[contv].addend > 0 {
+                    let a = controlVar[contv].addend as usize;
+                    out.add_projected_niels_to_extended(&precmpVar[a >>1], (i != 0 && !cp));
+                } else {
+                    let a = (-controlVar[contv].addend) as usize;
+                    out.sub_projected_niels_from_extended_point(&precmpVar[a >> 1], (i != 0 && !cp));
+                }
+                contv += 1;
+            }
+    
+            if cp {
+                if controlPre[contp].addend > 0 {
+                    let a = controlPre[contp].addend as usize;
+                    out.add_niels_to_extended(&DECAF_WNAF_TABLE[a >> 1], i != 0)
+                } else {
+                    let a = (-controlPre[contp].addend) as usize;
+                    out.sub_niels_from_extended_point(&DECAF_WNAF_TABLE[a >> 1], i != 0)
+                }
+                contp += 1;
+            }
+        
+            i -= 1;
+    
+        }
+
+        return out;
+    
+        
+        // CONTINUE
     }
 
 }
@@ -153,6 +390,76 @@ impl Twisted_Niels {
     }
 }
 
+pub fn trailing_zeroes_32(mut n: u32) -> u32 {
+    if n == 0 {return 32};
+    let mut r: u32 = 0;
+    while n % 2 == 0 {
+        r += 1;
+        n /= 2;
+    }
+    return r;
+}
+
+pub fn recode_wnaf(control: &mut Vec<Smvt_Control>, s: &Scalar, tableBits: usize) -> word {
+    let tableSize: usize = (446 / (tableBits + 1)) + 3;
+    let mut position: usize = tableSize - 1;
+    let bOver16: usize = 2;
+
+    control[position].power = -1;
+    control[position].addend = 0;
+    position -= 1;
+
+    let mut current: u64 = (s[0] & 0xffff) as u64;
+    let mut mask: u32 = ((1 << (tableBits + 1)) - 1) as u32;
+
+    for w in 1..30 {
+        if w < 28 {
+            current += (((s[w/bOver16] >> ((16 * (w % bOver16)) as usize)) << 16) as u32) as u64;
+        }
+        while current & 0xffff != 0 {
+            let mut pos: u32 = (trailing_zeroes_32(current as u32)) as u32;
+            let mut odd: u32 = (current as u32) >> pos;
+            let mut delta: i32 = (odd & mask) as i32;
+			if odd & (1 << (tableBits + 1)) != 0 {
+				delta -= (1 << (tableBits + 1));
+			}
+			current = ((current as i64) - ((delta<<pos) as i64)) as u64;
+			control[position].power = (pos as i64) + 16 * ((w as i64)-1);
+			control[position].addend = delta as i64;
+			position -= 1;
+        }
+        current >>= 16;
+    }
+
+    position += 1;
+    let n: usize = tableSize - position;
+	for i in 0..n {
+		control[i] = control[i + position].clone();
+	}
+	return (n - 1) as word;
+
+}
+
+pub fn decaf_prepare_wnaf_table(dst: &mut Vec<Twisted_Projected_Niels>, p: &mut Twisted_Extended_Point, tableSize: usize) {
+    dst[0] = p.to_projected_niels();
+
+	if tableSize == 0 {
+		return
+	}
+
+	p.double_internal(false);
+
+	let mut twOp = p.to_projected_niels();
+
+	p.add_projected_niels_to_extended(&dst[0], false);
+	dst[1] = p.to_projected_niels();
+
+	for i in 2..(1<<tableSize) {
+		p.add_projected_niels_to_extended(&twOp, false);
+		dst[i] = p.to_projected_niels();
+	}
+}
+
 pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
     let mut p = Twisted_Extended_Point::new();
     if srcOrg.len() != 57 {
@@ -173,7 +480,7 @@ pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
     p.z = sub(&bigOne, &p.x);
     p.t = mul_with_signed_curve_constant(&p.x, &edwardsD);
     p.t = sub(&bigOne, &p.t);
-    p.x = sub(&p.z, &p.t);
+    p.x = mul(&p.z, &p.t);
     p.t = isr(&p.x);
     p.x = mul(&p.t, &p.z);
     p.x = decaf_cond_negate(&p.x, &(!(lowBit(&p.x)) ^ low));
@@ -199,7 +506,11 @@ pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
         return (Twisted_Extended_Point::new(), decafFalse);
     }
 
-    // CONTINUE
+    let mut scalarOneForth:Scalar = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    scalarOneForth = halve(scalarOneForth);
+    scalarOneForth = halve(scalarOneForth);
+
+    p = p.point_scalar_mul(&scalarOneForth);
 
     return (p, succ)
     
@@ -365,7 +676,7 @@ mod tests {
     }
 
     #[test]
-    pub fn is_valid_point() {
+    pub fn test_is_valid_point() {
         let mut p = Twisted_Extended_Point::new();
         p.x = [0x034365c8, 0x06b2a874, 0x0eb875d7, 0x0ae4c7a7, 0x0785df04, 0x09929351, 0x01fe8c3b, 0x0f2a0e5f, 0x0111d39c, 0x07ab52ba, 0x01df4552, 0x01d87566, 0x0f297be2, 0x027c090f, 0x0a81b155, 0x0d1a562b];
         p.y = [0x00da9708, 0x0e7d583e, 0x0dbcc099, 0x0d2dad89, 0x05a49ce4, 0x01cb4ddc, 0x0928d395, 0x0098d91d, 0x0bff16ce, 0x06f02f9a, 0x0ce27cc1, 0x0dab5783, 0x0b553d94, 0x03251a0c, 0x064d70fb, 0x07fe3a2f];
@@ -378,5 +689,23 @@ mod tests {
         p.t = [0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff];
         assert_eq!(p.is_on_curve(), false);
     }
+
+    #[test]
+    pub fn test_eddsa_like_decode() {
+        let mut ser: [u8; 57] = [0xa5, 0xd9, 0xce, 0xa4, 0x06, 0x89, 0xa4, 0x13, 0x94, 0xf0, 0x69, 0x32, 0xfe, 0xe0, 0xdb, 0x11, 0x7b, 0xe0, 0x75, 0x78, 0x68, 0x2c, 0x48, 0x44, 0x70, 0x3b, 0xe9, 0xc6, 0x64, 0xde, 0x6c, 0xe0, 0xd6, 0xa5, 0xa3, 0x4e, 0xe7, 0x38, 0xd9, 0xb3, 0x0c, 0x93, 0x75, 0x75, 0x8d, 0xe8, 0x50, 0xde, 0x06, 0x2c, 0xb9, 0x75, 0x50, 0x7d, 0x24, 0x85, 0x00,];
+        let mut scalarOneForth:Scalar = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        scalarOneForth = halve(scalarOneForth);
+        scalarOneForth = halve(scalarOneForth);
+        let mut exp = Twisted_Extended_Point::new();
+        exp.x = [0x0c7e3738, 0x0cbdc97c, 0x0d8e25f0, 0x03332483, 0x0111e7fc, 0x0c4b6cc7, 0x0f8f792c, 0x0bfabfc9, 0x06401561, 0x008bed52, 0x029a6321, 0x0093629d, 0x07cc65ec, 0x0a0306c6, 0x09cdac09, 0x01124131];
+        exp.y = [0x0c35f413, 0x0bea33bb, 0x0a35ff5e, 0x0db8b320, 0x0decf793, 0x0ce8a106, 0x0b6ca51d, 0x0454dc1c, 0x005424ab, 0x0e976ae4, 0x091a6deb, 0x0780e161, 0x0384d250, 0x00c5041e, 0x0bef5512, 0x0d39b7a4];
+        exp.z = [0x01bff100, 0x01ba8567, 0x078a886e, 0x01a59234, 0x0f7c2f29, 0x0507cdc8, 0x03211d38, 0x0ecf7fb8, 0x08d25fe3, 0x0445a223, 0x039c7188, 0x0d6f989c, 0x0722cff6, 0x0f0beee0, 0x0438ebd1, 0x0f3114e2];
+        exp.t = [0x059c1192, 0x0a24f740, 0x09f8d723, 0x0db5fd8b, 0x08e6159b, 0x00b004e2, 0x06f2f030, 0x035c4c38, 0x01387946, 0x0355e067, 0x07d3e614, 0x09d57b9c, 0x03b0c3d7, 0x07002ba2, 0x0f4e320f, 0x03eafa71];
+        exp = exp.point_scalar_mul(&scalarOneForth);
+        let (mut res, mut suc) = eddsa_like_decode(&ser);
+        assert_eq!(res, exp);
+        assert_eq!(suc, decafTrue);
+    }
+
 
 }
