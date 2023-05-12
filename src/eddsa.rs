@@ -37,7 +37,7 @@ pub fn dsa_sign(sym: &[u8], ) {
 pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
     let (mut p, ok) = eddsa_like_decode(pubkey);
     if ok != decafTrue {
-        panic!("Invalit public key");
+        panic!("Invalid public key");
     }
     let scalarZero:Scalar = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let scalarFour:Scalar = [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];

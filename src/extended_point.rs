@@ -502,6 +502,7 @@ pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
     p.t = mul(&b, &d);
     
     let ok = p.is_on_curve();
+    println!("{:?}", ok);
     if !ok {
         return (Twisted_Extended_Point::new(), decafFalse);
     }

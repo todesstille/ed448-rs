@@ -1,6 +1,6 @@
 use std::result;
 
-use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::precomputed_scalar_mul, eddsa::{clamp, sha3, hash_with_dom, dsa_verify}};
+use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::{precomputed_scalar_mul, Twisted_Extended_Point}, eddsa::{clamp, sha3, hash_with_dom, dsa_verify}};
 
 pub type PrivateKey = [u8; 57];
 pub type PublicKey = [u8; 57];
@@ -17,6 +17,19 @@ pub fn hex_to_signature(hexx: &str) -> [u8; 114] {
     s
 }
 
+pub fn point_by_secret(p: &PrivateKey) -> Twisted_Extended_Point {
+
+    let mut digest = p.clone();
+	clamp(&mut digest);
+
+	let mut r = decode_long(&digest);
+	r = halve(r);
+	r = halve(r);
+	let h = precomputed_scalar_mul(r);
+
+	h
+}
+
 pub fn private_to_secret(pk: &PrivateKey) -> PrivateKey {
     let mut sk: PrivateKey = [0; 57];
     sha3(pk, &mut sk);
@@ -25,13 +38,9 @@ pub fn private_to_secret(pk: &PrivateKey) -> PrivateKey {
 }
 
 pub fn secret_to_public(sk: &PrivateKey) -> PublicKey {
-    let mut sk1 = sk.clone();
-    clamp(&mut sk1);
-    let mut r = decode_long(&sk1);
-    r = halve(r);
-    r = halve(r);
-    let h = precomputed_scalar_mul(r);
-    let mut p: PublicKey = h.eddsa_like_encode();
+
+    let h = point_by_secret(&sk);
+    let p: PublicKey = h.eddsa_like_encode();
 
     p
 }
@@ -46,11 +55,7 @@ pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
     let mut sec = decode_long(&sk);
     let mut seed: [u8; 57] = [0; 57];
     seed.clone_from_slice(&secret[57..114]);
-    clamp(&mut sk);
-    let mut r = decode_long(&sk);
-    r = halve(r);
-    r = halve(r);
-    let mut point = precomputed_scalar_mul(r);
+    let mut point = point_by_secret(&sk);
 
     let mut nonce: [u8; 114] = [0; 114];
     let mut v1: Vec<u8> = seed.to_vec();
@@ -80,7 +85,51 @@ pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
 
 }
 
-pub fn verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
+pub fn sign_with_secret_and_nonce(secret: &PrivateKey, n: &PrivateKey, message: &[u8]) -> [u8; 114] {
+
+	let mut s1 = secret.clone();
+	clamp(&mut s1);
+    let mut sec = decode_long(&s1);
+
+	let pub_point = point_by_secret(&secret);
+
+	let mut nonce: [u8; 114] = [0; 114];
+    let mut v1: Vec<u8> = n.to_vec();
+    v1.append(&mut message.to_vec());
+    hash_with_dom(&mut v1, &mut nonce);
+    let mut nonce_scalar = decode_long(&nonce);
+    let mut nonce_scalar2 = nonce_scalar.clone();
+    nonce_scalar2 = halve(nonce_scalar2);
+    nonce_scalar2 = halve(nonce_scalar2);
+    let mut nonce_point = precomputed_scalar_mul(nonce_scalar2).eddsa_like_encode();
+
+    let mut challenge: [u8; 114] = [0; 114];
+    let mut h = nonce_point.to_vec();
+    h.append(&mut pub_point.eddsa_like_encode().to_vec());
+    h.append(&mut message.to_vec());
+    hash_with_dom(&mut h, &mut challenge);
+
+    let mut challenge_scalar = decode_long(&challenge);
+    challenge_scalar = scalar::mul(&challenge_scalar, &sec);
+    challenge_scalar = scalar::add(&challenge_scalar, &nonce_scalar);
+
+    let mut result: [u8; 114] = [0; 114];
+    result[0..57].copy_from_slice(&nonce_point);
+    result[57..114].copy_from_slice(&encode(&challenge_scalar));
+
+    result
+}
+
+
+pub fn ed448_derive_public(pk: &PrivateKey) -> PublicKey {
+    secret_to_public(&&private_to_secret(&pk))
+}
+
+pub fn ed448_sign(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
+    sign_by_private(&pk, &message)
+}
+
+pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
     dsa_verify(pubkey, sig, message)
 }
 
@@ -119,14 +168,22 @@ mod tests {
         let pk = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb5");
         let fox = b"The quick brown fox jumps over the lazy dog";
         let sig = sign_by_private(&pk, fox);
-        println!("{:?}", sig);
         let sec = private_to_secret(&pk);
         let public = secret_to_public(&sec);
-        println!("{:?}", public);
-        println!("{:?}", pk);
         let sig2 = hex_to_signature("d3ffe2cffeba84f631c9e4f452c7f27023b48e679f30ad9f43b4ef0483670e25842efdd6a20ad74f2c08351e37857763c0e1b787a7a02c5c00708263b206ab852e865676b3b8ad2c86794cd2831b54064cda39e2703a4c172a1debf051e01ae981c58a577731127f2bfb7aaa3f9242572400");
         assert_eq!(sig, sig2);
     }
+
+    #[test]
+    pub fn test_sign_with_secret_and_nonce() {
+        let pk = hex_to_private_key("26ad14d91ef8f1e5bbf5a1a7e44a9532e4854f1e1346761ee9b4ed1ed103e5e05c87fd9ecd788bc879a7433a7115255b7aad667fe84ee35c28");
+        let n = hex_to_private_key("66dd9754284a1b7d77c1c43bfdfe38a116bd143e7c901b8e8e4561a7ee0a401dd5120fa2b77e2a6bda3a68d5a47e34fd29cf14ce3489067602");
+        let fox = b"The quick brown fox jumps over the lazy dog";
+        let sig = sign_with_secret_and_nonce(&pk, &n, fox);
+        let sig2 = hex_to_signature("71e4ae51aa4d1f59f10efaaca743ca557079c2de1d298375d80eac8c53d29567add49f6296206f6c0d56ad3cd3f34b3644b1b01361900bea803aae2018aea2db72a2c5557a207ba17b8316335817b4a9474def73b3ea0ddaaae593e76596fbeac45c8ef04df3bb23dc809d2b7db49dbf0a00");
+        assert_eq!(sig, sig2);
+    }
+
 
 
     // #[test]
@@ -139,6 +196,23 @@ mod tests {
     //     let duration = before.elapsed().unwrap();
     //     println!("{:?}", duration);
     // }
+
+    #[test]
+    pub fn test_overall() {
+        let pk = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb5");
+        let fox = b"The quick brown fox jumps over the lazy dog";
+        let sig = ed448_sign(&pk, fox);
+        let public = ed448_derive_public(&pk);
+        let mut v = ed448_verify(&public, &sig, fox);
+        assert_eq!(v, true);
+
+        let pk1 = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb6");
+        let public1 = ed448_derive_public(&pk1);
+        v = ed448_verify(&public1, &sig, fox);
+        assert_eq!(v, false);
+
+    }
+
 
 
 }
