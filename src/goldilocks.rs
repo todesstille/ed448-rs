@@ -1,4 +1,5 @@
 use std::result;
+use rand::RngCore;
 
 use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::{precomputed_scalar_mul, Twisted_Extended_Point}, eddsa::{clamp, sha3, hash_with_dom, dsa_verify}};
 
@@ -43,6 +44,10 @@ pub fn secret_to_public(sk: &PrivateKey) -> PublicKey {
     let p: PublicKey = h.eddsa_like_encode();
 
     p
+}
+
+pub fn private_to_public(pk: &PrivateKey) -> PublicKey {
+    secret_to_public(&&private_to_secret(&pk))
 }
 
 pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
@@ -122,15 +127,37 @@ pub fn sign_with_secret_and_nonce(secret: &PrivateKey, n: &PrivateKey, message: 
 
 
 pub fn ed448_derive_public(pk: &PrivateKey) -> PublicKey {
-    secret_to_public(&&private_to_secret(&pk))
+    if pk[57-1] & 0x80 == 0x00 {
+		return private_to_public(&pk);
+	} else {
+		return secret_to_public(&pk);
+	}
+
 }
 
 pub fn ed448_sign(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
-    sign_by_private(&pk, &message)
+
+    if pk[57-1] & 0x80 == 0x00 {
+		return sign_by_private(&pk, &message);
+	} else {
+        let mut digest = pk.clone();
+        clamp(&mut digest);
+
+		let sig = sign_with_secret_and_nonce(&digest, &digest, &message);
+
+		return sig;
+	}
 }
 
 pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
     dsa_verify(pubkey, sig, message)
+}
+
+pub fn ed448_generate_key() -> PrivateKey {
+
+    let mut randomKey: PrivateKey = [0; 57];
+    rand::thread_rng().fill_bytes(&mut randomKey);
+    randomKey
 }
 
 #[cfg(test)]
@@ -158,10 +185,17 @@ mod tests {
     pub fn test_secret_to_public() {
         let pk = hex_to_private_key("1413821ed67083c855c6db4405dd4fa5fdec39e1c761be1415623c1c202c5cb5176e578830372b7e07eb1ef9cf71b19518815c4da0fd2d3594");
         let pubk = secret_to_public(&pk);
-        let exp: PublicKey = [182, 21, 229, 125, 212, 209, 92, 62, 209, 50, 55, 37, 192, 186, 139, 29, 127, 110, 116, 13, 8, 224, 226, 156, 109, 63, 245, 100, 200, 150, 192, 195, 221, 40, 169, 187, 80, 101, 224, 103, 37, 200, 249, 227, 247, 194, 198, 187, 173, 73, 0, 183, 68, 126, 207, 152, 128];
+        let exp: PublicKey = hex_to_private_key("b615e57dd4d15c3ed1323725c0ba8b1d7f6e740d08e0e29c6d3ff564c896c0c3dd28a9bb5065e06725c8f9e3f7c2c6bbad4900b7447ecf9880");
         assert_eq!(pubk, exp);
     }
 
+    #[test]
+    pub fn test_private_to_public() {
+        let pk = hex_to_private_key("a8ea212cc24ae0fd029a97b64be540885af0e1b7dc9faf4a591742850c4377f857ae9a8f87df1de98e397a5867dd6f20211ef3f234ae71bc56");
+        let pubk = private_to_public(&pk);
+        let exp: PublicKey = hex_to_private_key("b615e57dd4d15c3ed1323725c0ba8b1d7f6e740d08e0e29c6d3ff564c896c0c3dd28a9bb5065e06725c8f9e3f7c2c6bbad4900b7447ecf9880");
+        assert_eq!(pubk, exp);
+    }
 
     #[test]
     pub fn test_sign_with_private() {
@@ -197,22 +231,63 @@ mod tests {
     //     println!("{:?}", duration);
     // }
 
+    // #[test]
+    // pub fn test_overall() {
+    //     let pk = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb5");
+    //     let fox = b"The quick brown fox jumps over the lazy dog";
+    //     let sig = ed448_sign(&pk, fox);
+    //     let public = private_to_public(&pk);
+    //     let mut v = ed448_verify(&public, &sig, fox);
+    //     assert_eq!(v, true);
+
+    //     let pk1 = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb6");
+    //     let public1 = ed448_derive_public(&pk1);
+    //     v = ed448_verify(&public1, &sig, fox);
+    //     assert_eq!(v, false);
+
+    // }
+
     #[test]
-    pub fn test_overall() {
-        let pk = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb5");
-        let fox = b"The quick brown fox jumps over the lazy dog";
-        let sig = ed448_sign(&pk, fox);
-        let public = ed448_derive_public(&pk);
-        let mut v = ed448_verify(&public, &sig, fox);
-        assert_eq!(v, true);
-
-        let pk1 = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb6");
-        let public1 = ed448_derive_public(&pk1);
-        v = ed448_verify(&public1, &sig, fox);
-        assert_eq!(v, false);
-
+    pub fn test_ed448_derive_public() {
+        let mut pk = hex_to_private_key("582f73eb3d951ef93a8c392c7b113ad85c0f60a744c95c47370d4d593593edc0d745eb24fa2130f51fd5b1e6b2363a5405bf1e074ecbf4382d");
+        let mut pubk = ed448_derive_public(&pk);
+        let mut exp: PublicKey = hex_to_private_key("4e6ef3aa2a74ce85c9c75de379c72abbce30601db4f66af1535d00190fa5de83af3831fa32e37c59e14a25788e56140896fb59b494e4fdca80");
+        assert_eq!(pubk, exp);
+        
+        pk = hex_to_private_key("59fc82f514f3fc8d02d987e52a03cdcae81a257bed6ec9b668bf6acd8fe9e7d27cbcc4d8f463d917642d30e7ca44c3521370f78790b3b561dd");
+        pubk = ed448_derive_public(&pk);
+        exp = hex_to_private_key("3cba3b2560c2779170ce5947f55bf73b93a1dd51d99b0b483ed0cfb5a9bb8409830c0f96068c799dbc6a28ca6bc1aad95d0387c36a731d7800");
+        assert_eq!(pubk, exp);
     }
 
+    #[test]
+    pub fn test_ed448_sign() {
+        let mut pk = hex_to_private_key("e959068474bc720bf3a94c7a524750f0d4fe68a4828137e58d48303af1fa929a6c50f87d0cab27fc557aa1a3190cfad0abbca2a2e5d7da272d");
+        let fox = b"The quick brown fox jumps over the lazy dog";
+        let mut sig = ed448_sign(&pk, fox);
+        let mut sig2 = hex_to_signature("92a7e08f86b25f288eb0308f3fb780950ab77c333d5d1b91b6de40a199fc028fe66a001dc09341905a58f8c3d4a959ee5d416735f59d91640095dd83e70b6bc05fa6a26b32c00be454bfb87285417554183c2da64bbbad77b746bd86299fd4188578bc9aa321a8291c5d2281029ca24e2d00");
+        assert_eq!(sig, sig2);
 
+        pk = hex_to_private_key("1edc2069350104b5594c602f7967c4b1580f2a757fc9a2745f621868cd333c245ec3c775d730d3c01a2e18f3e5d0b5e767ed3ec77e69732781");
+        sig = ed448_sign(&pk, fox);
+        sig2 = hex_to_signature("789dd9e1a4471c30cfef1da68076542e6918676424593936dbeb282f5929dcfa3437aef85fd890999ea7a1b16a2c8c3a8cf330c58768789b006b183034ec43acab783039d53fe46f6c39ab29f988a43371d07fe7746a2fd45c660f2a8c441446b8f1cdbfc0787e4cfe69280e5cd7b92d0400");
+        assert_eq!(sig, sig2);
+    }
+
+    #[test]
+    pub fn batch_test_sign_verify() {
+        let n: usize = 100;
+        let fox = b"The quick brown fox jumps over the lazy dog";
+        for i in 0..n {
+            let pk = ed448_generate_key();
+            let sig = ed448_sign(&pk, fox);
+            let truePub = ed448_derive_public(&pk);
+            let mut result = ed448_verify(&truePub, &sig, fox);
+            assert_eq!(result, true);
+            let falsePub = ed448_derive_public(&ed448_generate_key());
+            result = ed448_verify(&falsePub, &sig, fox);
+            assert_eq!(result, false);
+        }
+    }
 
 }
