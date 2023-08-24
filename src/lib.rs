@@ -9,6 +9,7 @@ mod decaf_combs_32;
 mod decaf_wnaf_table;
 mod goldilocks;
 mod eddsa;
+mod errors;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

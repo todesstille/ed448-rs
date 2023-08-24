@@ -1,6 +1,7 @@
 use std::slice::Windows;
 
 use crate::{constants32::{BigNumber, decafCombSpacing, word, decafCombNumber, decafCombTeeth, scalarBits, wordBits, sword, zeroMask, fieldBytes, bigOne, edwardsD, dword, bigZero, decafTrue, decafFalse, scalarWords}, bignumber::*, scalar::{Scalar, create_zero_scalar, halve, self}, decaf_combs_32::{DECAF_PRECOMP_TABLE}, decaf_wnaf_table::DECAF_WNAF_TABLE};
+use crate::errors::LibgoldilockErrors;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Smvt_Control {
@@ -460,10 +461,10 @@ pub fn decaf_prepare_wnaf_table(dst: &mut Vec<Twisted_Projected_Niels>, p: &mut 
 	}
 }
 
-pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
+pub fn eddsa_like_decode(srcOrg: &[u8]) -> Result<Twisted_Extended_Point, LibgoldilockErrors> {
     let mut p = Twisted_Extended_Point::new();
     if srcOrg.len() != 57 {
-        panic!("Attempted to decode with a source that is not 57 bytes");
+        return Err(LibgoldilockErrors::InvalidLengthError);
     }
     let mut src: [u8; 57] = [0; 57];
     src.copy_from_slice(srcOrg);
@@ -504,7 +505,7 @@ pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
     let ok = p.is_on_curve();
     println!("{:?}", ok);
     if !ok {
-        return (Twisted_Extended_Point::new(), decafFalse);
+        return Err(LibgoldilockErrors::DecodeError);
     }
 
     let mut scalarOneForth:Scalar = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -513,7 +514,7 @@ pub fn eddsa_like_decode(srcOrg: &[u8]) -> (Twisted_Extended_Point, word) {
 
     p = p.point_scalar_mul(&scalarOneForth);
 
-    return (p, succ)
+    return Ok(p)
     
 }
 
@@ -703,9 +704,9 @@ mod tests {
         exp.z = [0x01bff100, 0x01ba8567, 0x078a886e, 0x01a59234, 0x0f7c2f29, 0x0507cdc8, 0x03211d38, 0x0ecf7fb8, 0x08d25fe3, 0x0445a223, 0x039c7188, 0x0d6f989c, 0x0722cff6, 0x0f0beee0, 0x0438ebd1, 0x0f3114e2];
         exp.t = [0x059c1192, 0x0a24f740, 0x09f8d723, 0x0db5fd8b, 0x08e6159b, 0x00b004e2, 0x06f2f030, 0x035c4c38, 0x01387946, 0x0355e067, 0x07d3e614, 0x09d57b9c, 0x03b0c3d7, 0x07002ba2, 0x0f4e320f, 0x03eafa71];
         exp = exp.point_scalar_mul(&scalarOneForth);
-        let (mut res, mut suc) = eddsa_like_decode(&ser);
-        assert_eq!(res, exp);
-        assert_eq!(suc, decafTrue);
+        let mut res = eddsa_like_decode(&ser);
+        assert_eq!(res.unwrap(), exp);
+        // assert_eq!(suc, decafTrue);
     }
 
 

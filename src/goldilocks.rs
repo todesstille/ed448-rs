@@ -2,6 +2,7 @@ use std::result;
 use rand::RngCore;
 
 use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::{precomputed_scalar_mul, Twisted_Extended_Point}, eddsa::{clamp, sha3, hash_with_dom, dsa_verify}};
+use crate::errors::LibgoldilockErrors;
 
 pub type PrivateKey = [u8; 57];
 pub type PublicKey = [u8; 57];
@@ -149,7 +150,7 @@ pub fn ed448_sign(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
 	}
 }
 
-pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
+pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, LibgoldilockErrors> {
     dsa_verify(pubkey, sig, message)
 }
 
@@ -283,10 +284,10 @@ mod tests {
             let sig = ed448_sign(&pk, fox);
             let truePub = ed448_derive_public(&pk);
             let mut result = ed448_verify(&truePub, &sig, fox);
-            assert_eq!(result, true);
+            assert_eq!(result.unwrap(), true);
             let falsePub = ed448_derive_public(&ed448_generate_key());
             result = ed448_verify(&falsePub, &sig, fox);
-            assert_eq!(result, false);
+            assert_eq!(result.unwrap(), false);
         }
     }
 

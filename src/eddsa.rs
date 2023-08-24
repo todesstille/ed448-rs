@@ -2,7 +2,9 @@ use std::result;
 
 use sha3::{Shake256, digest::{Update, ExtendableOutput, XofReader}};
 
-use crate::{extended_point::eddsa_like_decode, constants32::decafTrue, scalar::{Scalar, decode_long, sub, halve}};
+use crate::{extended_point::{eddsa_like_decode, Twisted_Extended_Point}, constants32::decafTrue, scalar::{Scalar, decode_long, sub, halve}};
+
+use crate::errors::LibgoldilockErrors;
 
 pub fn clamp(pk: &mut [u8]) {
     
@@ -34,10 +36,21 @@ pub fn dsa_sign(sym: &[u8], ) {
 
 }
 
-pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
-    let (mut p, ok) = eddsa_like_decode(pubkey);
-    if ok != decafTrue {
-        panic!("Invalid public key");
+pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, LibgoldilockErrors> {
+    let p: Twisted_Extended_Point;
+    match eddsa_like_decode(pubkey) {
+        Ok(point) => {p = point},
+        Err(err) => match err {
+            LibgoldilockErrors::InvalidLengthError => {
+                return Err(LibgoldilockErrors::InvalidPubkeyLengthError);
+            },
+            LibgoldilockErrors::DecodeError => {
+                return Err(LibgoldilockErrors::DecodePubkeyError);
+            },
+            other_error => {
+                panic!("Unexpected error type");
+            }
+        }
     }
     let scalarZero:Scalar = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let scalarFour:Scalar = [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -49,10 +62,23 @@ pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
         sig1[i] = sig[i];
         sig2[i] = sig[i + 57];
     }
-    let (mut rPoint, ok) = eddsa_like_decode(&sig1); 
-    if ok != decafTrue {
-        panic!("Invalid signature");
+
+    let mut rPoint: Twisted_Extended_Point;
+    match eddsa_like_decode(&sig1) {
+        Ok(point) => {rPoint = point},
+        Err(err) => match err {
+            LibgoldilockErrors::InvalidLengthError => {
+                return Err(LibgoldilockErrors::InvalidSignatureLengthError);
+            },
+            LibgoldilockErrors::DecodeError => {
+                return Err(LibgoldilockErrors::DecodeSignatureError);
+            },
+            other_error => {
+                panic!("Unexpected error type");
+            }
+        }
     }
+
     rPoint = rPoint.point_scalar_mul(&scalarFour);
 
     let mut challenge: [u8; 114] = [0; 114];
@@ -71,7 +97,7 @@ pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> bool {
     // println!("{:?}", rPoint);
     // rPoint.eq(&pk)
 
-    rPoint.mod_equal(&pk)
+    Ok(rPoint.mod_equal(&pk))
 
 }
 
@@ -87,6 +113,6 @@ mod tests {
         let public: [u8; 57] = [195, 193, 156, 26, 17, 153, 66, 251, 226, 152, 245, 223, 117, 101, 207, 48, 3, 101, 6, 3, 98, 172, 67, 111, 92, 180, 137, 58, 219, 242, 33, 124, 171, 95, 19, 77, 117, 240, 95, 215, 148, 192, 172, 159, 209, 0, 41, 180, 226, 130, 237, 201, 179, 228, 32, 120, 128];
         let fox = b"The quick brown fox jumps over the lazy dog";
         let result = dsa_verify(&public, &sig, fox);
-        assert_eq!(result, true);
+        assert_eq!(result.unwrap(), true);
     }
 }
