@@ -13,3 +13,4 @@ mod eddsa;
 mod errors;
 
 pub use goldilocks::ed448_verify;
+pub use errors::LibgoldilockErrors;
