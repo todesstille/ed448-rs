@@ -1,6 +1,5 @@
 #![allow(warnings)]
-
-use goldilocks::ed448_verify; 
+ 
 mod scalar;
 mod constants32;
 mod bignumber;
@@ -12,3 +11,5 @@ mod decaf_wnaf_table;
 mod goldilocks;
 mod eddsa;
 mod errors;
+
+pub use goldilocks::ed448_verify;
