@@ -1,4 +1,6 @@
-#![allow(warnings)] 
+#![allow(warnings)]
+
+use goldilocks::ed448_verify; 
 mod scalar;
 mod constants32;
 mod bignumber;
