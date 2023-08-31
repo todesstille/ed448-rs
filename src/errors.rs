@@ -1,4 +1,5 @@
 use std::fmt;
+use std::error::Error;
 
 #[derive(Debug)]
 pub enum LibgoldilockErrors {
@@ -15,3 +16,5 @@ impl fmt::Display for LibgoldilockErrors {
         todo!() 
     }
 }
+
+impl Error for LibgoldilockErrors {}
