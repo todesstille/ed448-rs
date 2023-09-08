@@ -11,3 +11,5 @@ mod decaf_wnaf_table;
 pub mod goldilocks;
 mod eddsa;
 pub mod errors;
+pub mod prehash;
+
