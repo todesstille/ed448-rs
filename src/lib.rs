@@ -90,3 +90,9 @@ impl PrehashSigner<Signature> for SigningKey {
         Ok( Signature{ sig: sig_with_private_key} )
     }
 }
+
+impl Signature {
+    pub fn as_slice(&self) -> &[u8] {
+        &self.sig
+    }
+}
