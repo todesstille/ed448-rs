@@ -33,16 +33,18 @@ pub struct SigningKey {
 }
 
 impl SecretKey {
-    pub fn from_str(str: &str) -> Result<Self, LibgoldilockErrors> {
+    pub fn from_str(str: &str) -> Self {
     let key = hex_to_private_key(str); 
-        Ok(Self {key})
+        
+    Self {key}
     }
 }
 
 impl VerifyingKey {
-    pub fn from_str(str: &str) -> Result<Self, LibgoldilockErrors> {
+    pub fn from_str(str: &str) -> Self {
     let key = hex_to_private_key(str); 
-        Ok(Self {key})
+        
+    Self {key}
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -52,13 +54,13 @@ impl VerifyingKey {
 }
 
 impl SigningKey {
-    pub fn from_str(str: &str) -> Result<Self, LibgoldilockErrors> {
+    pub fn from_str(str: &str) -> Self {
         let private_key = hex_to_private_key(str);
         let public_key = ed448_derive_public(&private_key);
         let secret_key = SecretKey {key: private_key};
         let verifying_key = VerifyingKey {key: public_key};
         
-        Ok(Self {secret_key, verifying_key})
+        Self {secret_key, verifying_key}
     }
 
     pub fn verifying_key(&self) -> &VerifyingKey {
