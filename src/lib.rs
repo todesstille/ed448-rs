@@ -12,6 +12,7 @@ pub mod goldilocks;
 mod eddsa;
 pub mod errors;
 
+use goldilocks::hex_to_private_key;
 use crate::errors::LibgoldilockErrors;
 
 pub trait PrehashSigner<S> {
@@ -24,5 +25,12 @@ pub struct SecretKey {
 
 pub struct VerifyingKey {
     key: [u8; 57],
+}
+
+impl SecretKey {
+    pub fn from_str(str: &str) -> Result<Self, LibgoldilockErrors> {
+    let key = hex_to_private_key(str); 
+        Ok(Self {key})
+    }
 }
 
