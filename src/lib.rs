@@ -39,6 +39,18 @@ impl SecretKey {
     }
 }
 
+impl VerifyingKey {
+    pub fn from_str(str: &str) -> Result<Self, LibgoldilockErrors> {
+    let key = hex_to_private_key(str); 
+        Ok(Self {key})
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        
+        &self.key
+    }
+}
+
 impl SigningKey {
     pub fn from_str(str: &str) -> Result<Self, LibgoldilockErrors> {
         let private_key = hex_to_private_key(str);
