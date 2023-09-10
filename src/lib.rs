@@ -11,5 +11,18 @@ mod decaf_wnaf_table;
 pub mod goldilocks;
 mod eddsa;
 pub mod errors;
-pub mod prehash;
+
+use crate::errors::LibgoldilockErrors;
+
+pub trait PrehashSigner<S> {
+    fn sign_prehash(&self, prehash: &[u8]) -> Result<S, LibgoldilockErrors>;
+}
+
+pub struct SecretKey {
+    key: [u8; 57],
+}
+
+pub struct VerifyingKey {
+    key: [u8; 57],
+}
 
