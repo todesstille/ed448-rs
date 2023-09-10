@@ -12,7 +12,7 @@ pub mod goldilocks;
 mod eddsa;
 pub mod errors;
 
-use goldilocks::{hex_to_private_key, ed448_derive_public};
+use goldilocks::{hex_to_private_key, ed448_derive_public, ed448_sign};
 use crate::errors::LibgoldilockErrors;
 
 pub trait PrehashSigner<S> {
@@ -33,6 +33,10 @@ pub struct VerifyingKey {
 pub struct SigningKey {
     secret_key: SecretKey,
     verifying_key: VerifyingKey,
+}
+
+pub struct Signature {
+    sig: [u8; 171],
 }
 
 impl SecretKey {
@@ -76,3 +80,13 @@ impl SigningKey {
 
 }
 
+impl PrehashSigner<Signature> for SigningKey {
+    fn sign_prehash(&self, prehash: &[u8]) -> Result<Signature, LibgoldilockErrors> {
+        let sig = ed448_sign(&self.secret_key.key, &prehash);
+        let mut sig_with_private_key: [u8; 171] = [0; 171];
+        sig_with_private_key[0..114].copy_from_slice(&sig);
+        sig_with_private_key[114..171].copy_from_slice(&self.verifying_key.key);
+
+        Ok( Signature{ sig: sig_with_private_key} )
+    }
+}
