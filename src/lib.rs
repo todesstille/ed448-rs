@@ -66,5 +66,10 @@ impl SigningKey {
     pub fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key
     }
+
+    pub fn secret_key(&self) -> &SecretKey {
+        &self.secret_key
+    }
+
 }
 
