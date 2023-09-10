@@ -70,6 +70,16 @@ impl SigningKey {
         Self {secret_key, verifying_key}
     }
 
+    pub fn from_slice(s: &[u8]) -> Self {
+        let mut private_key: [u8; 57] = [0; 57];
+        private_key.copy_from_slice(s);
+        let public_key = ed448_derive_public(&private_key);
+        let secret_key = SecretKey {key: private_key};
+        let verifying_key = VerifyingKey {key: public_key};
+        
+        Self {secret_key, verifying_key}
+    }
+
     pub fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key
     }
