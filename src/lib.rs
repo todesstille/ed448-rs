@@ -81,18 +81,18 @@ impl SigningKey {
         Self {secret_key, verifying_key}
     }
 
-    pub fn from_bytes(s: &[u8]) -> Result<Self, LibgoldilockErrors> {
+    pub fn from_bytes(s: &[u8]) -> Self {
         let mut private_key: [u8; 57] = [0; 57];
         private_key.copy_from_slice(s);
         let public_key = ed448_derive_public(&private_key);
         let secret_key = SecretKey {key: private_key};
         let verifying_key = VerifyingKey {key: public_key};
         
-        Ok(Self {secret_key, verifying_key})
+        Self {secret_key, verifying_key}
     }
 
 
-    pub fn random<R>(rng: &mut R) ->  Result<Self, LibgoldilockErrors> 
+    pub fn random<R>(rng: &mut R) -> Self 
     where
         R: Rng + CryptoRng,
     {
