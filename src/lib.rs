@@ -117,6 +117,10 @@ impl SigningKey {
         &self.secret_key
     }
 
+    pub fn to_bytes(&self) -> [u8; 57] {
+        self.secret_key.key.clone()
+    }
+
 }
 
 impl PrehashSigner<Signature> for SigningKey {
