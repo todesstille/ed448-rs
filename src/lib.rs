@@ -48,6 +48,12 @@ impl SecretKey {
     }
 }
 
+impl From<SecretKey> for SigningKey {
+    fn from(s: SecretKey) -> SigningKey {
+        SigningKey::from_slice(&s.key)
+    }
+}
+
 impl VerifyingKey {
     pub fn from_str(str: &str) -> Self {
     let key = hex_to_private_key(str); 
