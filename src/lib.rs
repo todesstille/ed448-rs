@@ -14,22 +14,23 @@ pub mod errors;
 
 use goldilocks::{hex_to_private_key, ed448_derive_public, ed448_sign};
 use crate::errors::LibgoldilockErrors;
+use rand::{CryptoRng, Rng};
 
 pub trait PrehashSigner<S> {
     fn sign_prehash(&self, prehash: &[u8]) -> Result<S, LibgoldilockErrors>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SecretKey {
     key: [u8; 57],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct VerifyingKey {
     key: [u8; 57],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SigningKey {
     secret_key: SecretKey,
     verifying_key: VerifyingKey,
@@ -79,6 +80,28 @@ impl SigningKey {
         
         Self {secret_key, verifying_key}
     }
+
+    pub fn from_bytes(s: &[u8]) -> Result<Self, LibgoldilockErrors> {
+        let mut private_key: [u8; 57] = [0; 57];
+        private_key.copy_from_slice(s);
+        let public_key = ed448_derive_public(&private_key);
+        let secret_key = SecretKey {key: private_key};
+        let verifying_key = VerifyingKey {key: public_key};
+        
+        Ok(Self {secret_key, verifying_key})
+    }
+
+
+    pub fn random<R>(rng: &mut R) ->  Result<Self, LibgoldilockErrors> 
+    where
+        R: Rng + CryptoRng,
+    {
+        let mut key: [u8; 57] = [0; 57];
+        rng.fill_bytes(key.as_mut_slice());
+
+        SigningKey::from_bytes(&key)
+    }
+
 
     pub fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key
