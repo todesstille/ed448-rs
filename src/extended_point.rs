@@ -503,7 +503,6 @@ pub fn eddsa_like_decode(srcOrg: &[u8]) -> Result<Twisted_Extended_Point, Libgol
     p.t = mul(&b, &d);
     
     let ok = p.is_on_curve();
-    println!("{:?}", ok);
     if !ok {
         return Err(LibgoldilockErrors::DecodeError);
     }
