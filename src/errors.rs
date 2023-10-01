@@ -8,7 +8,8 @@ pub enum LibgoldilockErrors {
     DecodeSignatureError,
     InvalidLengthError,
     InvalidPubkeyLengthError,
-    InvalidSignatureLengthError
+    InvalidSignatureLengthError,
+    InvalidSignatureError,
 }
 
 impl fmt::Display for LibgoldilockErrors {

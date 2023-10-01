@@ -7,6 +7,12 @@ use crate::errors::LibgoldilockErrors;
 pub type PrivateKey = [u8; 57];
 pub type PublicKey = [u8; 57];
 
+pub fn hex_to_message_hash(hexx: &str) -> [u8; 32] {
+    let mut p: [u8; 32] = [0;32];
+    hex::decode_to_slice(hexx, &mut p).expect("Decoding failed");
+    p
+}
+
 pub fn hex_to_private_key(hexx: &str) -> PrivateKey {
     let mut p: PrivateKey = [0;57];
     hex::decode_to_slice(hexx, &mut p).expect("Decoding failed");
@@ -154,6 +160,14 @@ pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, L
     dsa_verify(pubkey, sig, message)
 }
 
+pub fn ed448_verify_with_error(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<(), LibgoldilockErrors> {
+    let is_ok = dsa_verify(pubkey, sig, message)?;
+    if !is_ok {
+        return Err(LibgoldilockErrors::InvalidSignatureError);
+    }
+    Ok(())
+}
+
 pub fn ed448_generate_key() -> PrivateKey {
 
     let mut randomKey: PrivateKey = [0; 57];
@@ -290,5 +304,15 @@ mod tests {
             assert_eq!(result.unwrap(), false);
         }
     }
+
+    // #[test]
+    // pub fn test_ed448_verify() {
+    //     let mut sig = hex_to_signature("fe25200421dd73065668979b4cedc19ddd8536db632d4bc61a569cc07906cc9485c2b1999dcd2234d18e7393b5ec8f21802bd76b6fddb08b808be5264c2a7992474e7efa947019dedb0a0ab5405313837c2270f7b56dfe57b5ccbe6df20f5866231b1ce0df77aeb603944500d0c5e22b3000");
+    //     let mut pk = hex_to_private_key("bddc6f8ef904cc39eff871720fcf794575aa285809c09602ceff06fd741e8a39b2304779778e20c9ac76bc4c5628b6f1ad03d49d3dd09b4380");
+    //     let message = hex_to_message_hash("1f7d6d8c8133fb9807148f7188b797ac3d6308df12fc03d37de6ec5088c2f547");
+    //     let result = ed448_verify(&pk, &sig, &message).unwrap();
+    //     println!("{:?}", result);
+    // }
+
 
 }
