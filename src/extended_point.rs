@@ -718,7 +718,7 @@ mod tests {
             b: pb.clone(),
             c: pc.clone(),
         };
-        let mut n_neg = TwistedNiels {
+        let n_neg = TwistedNiels {
             a: pb.clone(),
             b: pa.clone(),
             c: neg(&pc.clone()),
@@ -929,7 +929,7 @@ mod tests {
 
     #[test]
     pub fn test_eddsa_like_decode() {
-        let mut ser: [u8; 57] = [
+        let ser: [u8; 57] = [
             0xa5, 0xd9, 0xce, 0xa4, 0x06, 0x89, 0xa4, 0x13, 0x94, 0xf0, 0x69, 0x32, 0xfe, 0xe0,
             0xdb, 0x11, 0x7b, 0xe0, 0x75, 0x78, 0x68, 0x2c, 0x48, 0x44, 0x70, 0x3b, 0xe9, 0xc6,
             0x64, 0xde, 0x6c, 0xe0, 0xd6, 0xa5, 0xa3, 0x4e, 0xe7, 0x38, 0xd9, 0xb3, 0x0c, 0x93,
@@ -961,7 +961,7 @@ mod tests {
             0x0f4e320f, 0x03eafa71,
         ];
         exp = exp.point_scalar_mul(&scalar_one_forth);
-        let mut res = eddsa_like_decode(&ser);
+        let res = eddsa_like_decode(&ser);
         assert_eq!(res.unwrap(), exp);
         // assert_eq!(suc, decafTrue);
     }

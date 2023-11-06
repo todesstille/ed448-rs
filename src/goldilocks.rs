@@ -175,8 +175,6 @@ pub fn ed448_generate_key() -> PrivateKey {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
-
     use super::*;
 
     #[test]
@@ -219,8 +217,6 @@ mod tests {
         let pk = hex_to_private_key("64c2754ee8f55f285d1c6efac34345c78da28df5c31d9ae3748417e0754903004eca31389e978df148e3941de8d4c3585b6dd3669903f00bb5");
         let fox = b"The quick brown fox jumps over the lazy dog";
         let sig = sign_by_private(&pk, fox);
-        let sec = private_to_secret(&pk);
-        let public = secret_to_public(&sec);
         let sig2 = hex_to_signature("d3ffe2cffeba84f631c9e4f452c7f27023b48e679f30ad9f43b4ef0483670e25842efdd6a20ad74f2c08351e37857763c0e1b787a7a02c5c00708263b206ab852e865676b3b8ad2c86794cd2831b54064cda39e2703a4c172a1debf051e01ae981c58a577731127f2bfb7aaa3f9242572400");
         assert_eq!(sig, sig2);
     }
@@ -293,7 +289,7 @@ mod tests {
     pub fn batch_test_sign_verify() {
         let n: usize = 100;
         let fox = b"The quick brown fox jumps over the lazy dog";
-        for i in 0..n {
+        for _i in 0..n {
             let pk = ed448_generate_key();
             let sig = ed448_sign(&pk, fox);
             let true_pub = ed448_derive_public(&pk);

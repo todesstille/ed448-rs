@@ -235,8 +235,9 @@ mod tests {
         assert_eq!(result, b);
     }
 
+    #[test]
     fn test_scalar_set() {
-        let mut a = set(0xee);
+        let a = set(0xee);
         let mut result = [0; 14];
         result[0] = 0xee;
         assert_eq!(result, a);

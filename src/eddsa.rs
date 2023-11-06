@@ -106,8 +106,6 @@ pub fn dsa_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, Lib
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
-
     use super::*;
 
     #[test]
