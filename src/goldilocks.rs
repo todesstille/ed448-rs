@@ -1,41 +1,41 @@
-use std::result;
 use rand::RngCore;
 
-use crate::{scalar::{decode_long, halve, Scalar, self, encode}, extended_point::{precomputed_scalar_mul, Twisted_Extended_Point}, eddsa::{clamp, sha3, hash_with_dom, dsa_verify}};
 use crate::errors::LibgoldilockErrors;
+use crate::{
+    eddsa::{clamp, dsa_verify, hash_with_dom, sha3},
+    extended_point::{precomputed_scalar_mul, TwistedExtendedPoint},
+    scalar::{self, decode_long, encode, halve},
+};
 
 pub type PrivateKey = [u8; 57];
 pub type PublicKey = [u8; 57];
 
 pub fn hex_to_message_hash(hexx: &str) -> [u8; 32] {
-    let mut p: [u8; 32] = [0;32];
+    let mut p: [u8; 32] = [0; 32];
     hex::decode_to_slice(hexx, &mut p).expect("Decoding failed");
     p
 }
 
 pub fn hex_to_private_key(hexx: &str) -> PrivateKey {
-    let mut p: PrivateKey = [0;57];
+    let mut p: PrivateKey = [0; 57];
     hex::decode_to_slice(hexx, &mut p).expect("Decoding failed");
     p
 }
 
 pub fn hex_to_signature(hexx: &str) -> [u8; 114] {
-    let mut s: [u8; 114] = [0;114];
+    let mut s: [u8; 114] = [0; 114];
     hex::decode_to_slice(hexx, &mut s).expect("Decoding failed");
     s
 }
 
-pub fn point_by_secret(p: &PrivateKey) -> Twisted_Extended_Point {
+pub fn point_by_secret(p: &PrivateKey) -> TwistedExtendedPoint {
+    let mut digest = *p;
+    clamp(&mut digest);
 
-    let mut digest = p.clone();
-	clamp(&mut digest);
-
-	let mut r = decode_long(&digest);
-	r = halve(r);
-	r = halve(r);
-	let h = precomputed_scalar_mul(r);
-
-	h
+    let mut r = decode_long(&digest);
+    r = halve(r);
+    r = halve(r);
+    precomputed_scalar_mul(r)
 }
 
 pub fn private_to_secret(pk: &PrivateKey) -> PrivateKey {
@@ -46,45 +46,43 @@ pub fn private_to_secret(pk: &PrivateKey) -> PrivateKey {
 }
 
 pub fn secret_to_public(sk: &PrivateKey) -> PublicKey {
-
-    let h = point_by_secret(&sk);
+    let h = point_by_secret(sk);
     let p: PublicKey = h.eddsa_like_encode();
 
     p
 }
 
 pub fn private_to_public(pk: &PrivateKey) -> PublicKey {
-    secret_to_public(&&private_to_secret(&pk))
+    secret_to_public(&private_to_secret(pk))
 }
 
 pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
-
     let mut secret: [u8; 114] = [0; 114];
     sha3(pk, &mut secret);
     clamp(&mut secret);
     let mut sk: [u8; 57] = [0; 57];
     sk.clone_from_slice(&secret[0..57]);
-    let mut sec = decode_long(&sk);
+    let sec = decode_long(&sk);
     let mut seed: [u8; 57] = [0; 57];
     seed.clone_from_slice(&secret[57..114]);
-    let mut point = point_by_secret(&sk);
+    let point = point_by_secret(&sk);
 
     let mut nonce: [u8; 114] = [0; 114];
     let mut v1: Vec<u8> = seed.to_vec();
     v1.append(&mut message.to_vec());
     hash_with_dom(&mut v1, &mut nonce);
-    let mut nonce_scalar = decode_long(&nonce);
-    let mut nonce_scalar2 = nonce_scalar.clone();
+    let nonce_scalar = decode_long(&nonce);
+    let mut nonce_scalar2 = nonce_scalar;
     nonce_scalar2 = halve(nonce_scalar2);
     nonce_scalar2 = halve(nonce_scalar2);
-    let mut nonce_point = precomputed_scalar_mul(nonce_scalar2).eddsa_like_encode();
+    let nonce_point = precomputed_scalar_mul(nonce_scalar2).eddsa_like_encode();
 
     let mut challenge: [u8; 114] = [0; 114];
     let mut h = nonce_point.to_vec();
     h.append(&mut point.eddsa_like_encode().to_vec());
     h.append(&mut message.to_vec());
     hash_with_dom(&mut h, &mut challenge);
-    
+
     let mut challenge_scalar = decode_long(&challenge);
     challenge_scalar = scalar::mul(&challenge_scalar, &sec);
     challenge_scalar = scalar::add(&challenge_scalar, &nonce_scalar);
@@ -94,26 +92,28 @@ pub fn sign_by_private(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
     result[57..114].copy_from_slice(&encode(&challenge_scalar));
 
     result
-
 }
 
-pub fn sign_with_secret_and_nonce(secret: &PrivateKey, n: &PrivateKey, message: &[u8]) -> [u8; 114] {
+pub fn sign_with_secret_and_nonce(
+    secret: &PrivateKey,
+    n: &PrivateKey,
+    message: &[u8],
+) -> [u8; 114] {
+    let mut s1 = *secret;
+    clamp(&mut s1);
+    let sec = decode_long(&s1);
 
-	let mut s1 = secret.clone();
-	clamp(&mut s1);
-    let mut sec = decode_long(&s1);
+    let pub_point = point_by_secret(secret);
 
-	let pub_point = point_by_secret(&secret);
-
-	let mut nonce: [u8; 114] = [0; 114];
+    let mut nonce: [u8; 114] = [0; 114];
     let mut v1: Vec<u8> = n.to_vec();
     v1.append(&mut message.to_vec());
     hash_with_dom(&mut v1, &mut nonce);
-    let mut nonce_scalar = decode_long(&nonce);
-    let mut nonce_scalar2 = nonce_scalar.clone();
+    let nonce_scalar = decode_long(&nonce);
+    let mut nonce_scalar2 = nonce_scalar;
     nonce_scalar2 = halve(nonce_scalar2);
     nonce_scalar2 = halve(nonce_scalar2);
-    let mut nonce_point = precomputed_scalar_mul(nonce_scalar2).eddsa_like_encode();
+    let nonce_point = precomputed_scalar_mul(nonce_scalar2).eddsa_like_encode();
 
     let mut challenge: [u8; 114] = [0; 114];
     let mut h = nonce_point.to_vec();
@@ -132,35 +132,34 @@ pub fn sign_with_secret_and_nonce(secret: &PrivateKey, n: &PrivateKey, message: 
     result
 }
 
-
 pub fn ed448_derive_public(pk: &PrivateKey) -> PublicKey {
-    if pk[57-1] & 0x80 == 0x00 {
-		return private_to_public(&pk);
-	} else {
-		return secret_to_public(&pk);
-	}
-
+    if pk[57 - 1] & 0x80 == 0x00 {
+        private_to_public(pk)
+    } else {
+        secret_to_public(pk)
+    }
 }
 
 pub fn ed448_sign(pk: &PrivateKey, message: &[u8]) -> [u8; 114] {
-
-    if pk[57-1] & 0x80 == 0x00 {
-		return sign_by_private(&pk, &message);
-	} else {
-        let mut digest = pk.clone();
+    if pk[57 - 1] & 0x80 == 0x00 {
+        sign_by_private(pk, message)
+    } else {
+        let mut digest = *pk;
         clamp(&mut digest);
 
-		let sig = sign_with_secret_and_nonce(&digest, &digest, &message);
-
-		return sig;
-	}
+        sign_with_secret_and_nonce(&digest, &digest, message)
+    }
 }
 
 pub fn ed448_verify(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<bool, LibgoldilockErrors> {
     dsa_verify(pubkey, sig, message)
 }
 
-pub fn ed448_verify_with_error(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Result<(), LibgoldilockErrors> {
+pub fn ed448_verify_with_error(
+    pubkey: &[u8],
+    sig: &[u8],
+    message: &[u8],
+) -> Result<(), LibgoldilockErrors> {
     let is_ok = dsa_verify(pubkey, sig, message)?;
     if !is_ok {
         return Err(LibgoldilockErrors::InvalidSignatureError);
@@ -169,10 +168,9 @@ pub fn ed448_verify_with_error(pubkey: &[u8], sig: &[u8], message: &[u8]) -> Res
 }
 
 pub fn ed448_generate_key() -> PrivateKey {
-
-    let mut randomKey: PrivateKey = [0; 57];
-    rand::thread_rng().fill_bytes(&mut randomKey);
-    randomKey
+    let mut random_key: PrivateKey = [0; 57];
+    rand::thread_rng().fill_bytes(&mut random_key);
+    random_key
 }
 
 #[cfg(test)]
@@ -182,9 +180,13 @@ mod tests {
     use super::*;
 
     #[test]
-    pub fn test_decode_hex () {
+    pub fn test_decode_hex() {
         let pk = hex_to_private_key("a8ea212cc24ae0fd029a97b64be540885af0e1b7dc9faf4a591742850c4377f857ae9a8f87df1de98e397a5867dd6f20211ef3f234ae71bc56");
-        let exp: PrivateKey = [168, 234, 33, 44, 194, 74, 224, 253, 2, 154, 151, 182, 75, 229, 64, 136, 90, 240, 225, 183, 220, 159, 175, 74, 89, 23, 66, 133, 12, 67, 119, 248, 87, 174, 154, 143, 135, 223, 29, 233, 142, 57, 122, 88, 103, 221, 111, 32, 33, 30, 243, 242, 52, 174, 113, 188, 86];
+        let exp: PrivateKey = [
+            168, 234, 33, 44, 194, 74, 224, 253, 2, 154, 151, 182, 75, 229, 64, 136, 90, 240, 225,
+            183, 220, 159, 175, 74, 89, 23, 66, 133, 12, 67, 119, 248, 87, 174, 154, 143, 135, 223,
+            29, 233, 142, 57, 122, 88, 103, 221, 111, 32, 33, 30, 243, 242, 52, 174, 113, 188, 86,
+        ];
         assert_eq!(pk, exp);
     }
 
@@ -192,7 +194,7 @@ mod tests {
     pub fn test_private_to_secret() {
         let pk = hex_to_private_key("a8ea212cc24ae0fd029a97b64be540885af0e1b7dc9faf4a591742850c4377f857ae9a8f87df1de98e397a5867dd6f20211ef3f234ae71bc56");
         let exp = hex_to_private_key("1413821ed67083c855c6db4405dd4fa5fdec39e1c761be1415623c1c202c5cb5176e578830372b7e07eb1ef9cf71b19518815c4da0fd2d3594");
-        let sk = private_to_secret(&pk);        
+        let sk = private_to_secret(&pk);
         assert_eq!(sk, exp);
     }
 
@@ -233,8 +235,6 @@ mod tests {
         assert_eq!(sig, sig2);
     }
 
-
-
     // #[test]
     // pub fn test_secret_to_public_benchmarks() {
     //     let pk = hex_to_private_key("1413821ed67083c855c6db4405dd4fa5fdec39e1c761be1415623c1c202c5cb5176e578830372b7e07eb1ef9cf71b19518815c4da0fd2d3594");
@@ -268,7 +268,7 @@ mod tests {
         let mut pubk = ed448_derive_public(&pk);
         let mut exp: PublicKey = hex_to_private_key("4e6ef3aa2a74ce85c9c75de379c72abbce30601db4f66af1535d00190fa5de83af3831fa32e37c59e14a25788e56140896fb59b494e4fdca80");
         assert_eq!(pubk, exp);
-        
+
         pk = hex_to_private_key("59fc82f514f3fc8d02d987e52a03cdcae81a257bed6ec9b668bf6acd8fe9e7d27cbcc4d8f463d917642d30e7ca44c3521370f78790b3b561dd");
         pubk = ed448_derive_public(&pk);
         exp = hex_to_private_key("3cba3b2560c2779170ce5947f55bf73b93a1dd51d99b0b483ed0cfb5a9bb8409830c0f96068c799dbc6a28ca6bc1aad95d0387c36a731d7800");
@@ -296,11 +296,11 @@ mod tests {
         for i in 0..n {
             let pk = ed448_generate_key();
             let sig = ed448_sign(&pk, fox);
-            let truePub = ed448_derive_public(&pk);
-            let mut result = ed448_verify(&truePub, &sig, fox);
+            let true_pub = ed448_derive_public(&pk);
+            let mut result = ed448_verify(&true_pub, &sig, fox);
             assert_eq!(result.unwrap(), true);
-            let falsePub = ed448_derive_public(&ed448_generate_key());
-            result = ed448_verify(&falsePub, &sig, fox);
+            let false_pub = ed448_derive_public(&ed448_generate_key());
+            result = ed448_verify(&false_pub, &sig, fox);
             assert_eq!(result.unwrap(), false);
         }
     }
@@ -313,6 +313,4 @@ mod tests {
     //     let result = ed448_verify(&pk, &sig, &message).unwrap();
     //     println!("{:?}", result);
     // }
-
-
 }
